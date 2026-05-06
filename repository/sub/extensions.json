@@ -7,9 +7,9 @@
     {
       "name": "Lua 5.2",
       "author": "Wagyourtail, Ghostmode65",
-      "source": "https://github.com/Ghostmode65/JsMacros-Lua/releases/download/1.2.3/jsmacros-lua-1.2.3.jar",
+      "source": "https://github.com/Ghostmode65/JsMacros-Lua/releases/download/1.2.4/jsmacros-lua-1.2.4.jar",
       "destination": "Extensions/",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "description": "Auto downloads the Lua extension. ",
       "imageurl": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/lua/image.png",
       "category": "jar",
