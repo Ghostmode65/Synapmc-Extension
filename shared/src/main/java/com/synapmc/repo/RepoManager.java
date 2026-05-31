@@ -31,7 +31,6 @@ import java.util.Set;
 
 public class RepoManager {
 
-
     public static class InstalledInfo {
         public String path;
         public String version;
@@ -46,7 +45,6 @@ public class RepoManager {
         }
         return INSTANCE;
     }
-
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -80,9 +78,6 @@ public class RepoManager {
         addRepo(url, true);
     }
 
-    /**
-     * @param overwrite
-     */
     public void addRepo(String url, boolean overwrite) {
         try {
             fetchAndCacheManifest(url);
@@ -261,7 +256,6 @@ public class RepoManager {
             return null;
         }
 
-      
         String jsmVer = entry.jsmacrosVersion != null ? entry.jsmacrosVersion.toLowerCase() : "";
         File jarDir;
         if (jsmVer.equals("2.0.0") || jsmVer.equals("community")) {
@@ -367,9 +361,6 @@ public class RepoManager {
         return getString(name, false);
     }
 
-    /**
-     * @param source if true, always fetches from the manifest source URL,
-     */
     public String getString(String name, boolean source) {
         if (!source) {
             InstalledInfo info = installed.get(name.toLowerCase());
@@ -600,7 +591,6 @@ public class RepoManager {
             manifest.name = source.repo;
             manifest.source = url;
             manifest.author = source.owner;
-            manifest.imageUrl = "https://github.com/" + source.owner + ".png";
             manifest.description = "Auto-generated from GitHub source.";
 
             String prefix = source.path != null && !source.path.isEmpty()
@@ -618,6 +608,7 @@ public class RepoManager {
                 entry.destination = "scripts/macros/";
                 entry.version = "1.0";
                 entry.description = "Auto-generated macro from " + path;
+                entry.imageurl = "https://github.com/" + source.owner + ".png";
                 entry.category = "macro";
                 entry.isExecuteReady = true;
                 manifest.scripts.add(entry);
@@ -853,7 +844,6 @@ public class RepoManager {
     private String sanitizeFilename(String name) {
         return name.replaceAll("[^a-zA-Z0-9_\\-]", "_");
     }
-
     public ScriptEntry findEntryPublic(String name) {
         return findEntry(name);
     }
@@ -925,7 +915,6 @@ public class RepoManager {
 
     private void pruneEmptyDirs(File deletedFile) {
         if (roamingDir == null) return;
-        // Build the set of protected absolute paths: static defaults + configured unify folders
         java.util.Set<String> protectedPaths = new java.util.HashSet<String>();
         for (String rel : PROTECTED_REL_PATHS) {
             protectedPaths.add(new File(roamingDir, rel).getAbsolutePath());
@@ -943,7 +932,6 @@ public class RepoManager {
         while (dir != null) {
             String abs = dir.getAbsolutePath();
             if (protectedPaths.contains(abs)) break;
-            // Stop if outside roamingDir
             if (!abs.startsWith(roamingDir.getAbsolutePath())) break;
             String[] contents = dir.list();
             if (contents != null && contents.length == 0) {
