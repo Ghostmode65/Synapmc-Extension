@@ -2,6 +2,10 @@ package com.synapmc.repo;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.synapmc.SynapMcShared;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
 public class RepoManager {
 
 
@@ -42,11 +47,13 @@ public class RepoManager {
         return INSTANCE;
     }
 
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private File roamingDir;
     private final Map<String, RepoManifest> manifests = new LinkedHashMap<String, RepoManifest>();
     private final Map<String, InstalledInfo> installed = new LinkedHashMap<String, InstalledInfo>();
+    private final Set<String> favorites = new java.util.LinkedHashSet<String>();
     private String lastFetchedName;
     private final DashboardServer dashboard = new DashboardServer();
 
@@ -54,16 +61,16 @@ public class RepoManager {
 
     public DashboardServer getDashboard() { return dashboard; }
 
-
     public void init(File roamingDir) {
         this.roamingDir = roamingDir;
         new File(roamingDir, "repos").mkdirs();
         loadInstalledIndex();
+        loadFavorites();
         for (String url : SynapMcShared.core.getConfiguredRepos().values()) {
             try {
                 fetchAndCacheManifest(url);
             } catch (Exception e) {
-                System.err.println("[SynapMc] Failed to fetch manifest from " + url + ": " + e.getMessage());
+                SynapMcShared.error("[SynapMc] Failed to fetch manifest from " + url + ": " + e.getMessage());
             }
         }
         applyRegisters();
@@ -73,6 +80,9 @@ public class RepoManager {
         addRepo(url, true);
     }
 
+    /**
+     * @param overwrite
+     */
     public void addRepo(String url, boolean overwrite) {
         try {
             fetchAndCacheManifest(url);
@@ -102,7 +112,7 @@ public class RepoManager {
             try {
                 addRepo(url);
             } catch (Exception e) {
-                System.err.println("[SynapMc] bulk-add failed for " + url + ": " + e.getMessage());
+                SynapMcShared.error("[SynapMc] bulk-add failed for " + url + ": " + e.getMessage());
             }
         }
     }
@@ -113,10 +123,10 @@ public class RepoManager {
             try {
                 fetchAndCacheManifest(url);
             } catch (Exception e) {
-                System.err.println("[SynapMc] refresh: failed to fetch manifest from " + url + ": " + e.getMessage());
+                SynapMcShared.error("[SynapMc] refresh: failed to fetch manifest from " + url + ": " + e.getMessage());
             }
         }
-        System.out.println("[SynapMc] Repos refreshed (" + manifests.size() + " loaded).");
+        SynapMcShared.info("[SynapMc] Repos refreshed (" + manifests.size() + " loaded).");
     }
 
     public String installScript(String name, String location) {
@@ -125,20 +135,20 @@ public class RepoManager {
 
     private String installScript(String name, String location, Set<String> visited) {
         if (!visited.add(name.toLowerCase())) {
-            System.err.println("[SynapMc] install: dependency cycle detected at: " + name);
+            SynapMcShared.error("[SynapMc] install: dependency cycle detected at: " + name);
             return null;
         }
 
         ScriptEntry entry = findEntry(name);
         if (entry == null) {
-            System.err.println("[SynapMc] install: script not found in any manifest: " + name);
+            SynapMcShared.error("[SynapMc] install: script not found in any manifest: " + name);
             return null;
         }
 
         if (entry.dependencies != null) {
             for (String dep : entry.dependencies) {
                 if (!isInstalled(dep)) {
-                    System.out.println("[SynapMc] install: installing dependency '" + dep + "' for '" + name + "'");
+                    SynapMcShared.info("[SynapMc] install: installing dependency '" + dep + "' for '" + name + "'");
                     installScript(dep, location, new HashSet<String>(visited));
                 }
             }
@@ -147,7 +157,7 @@ public class RepoManager {
         InstalledInfo existing = installed.get(name.toLowerCase());
         if (existing != null && existing.version != null && entry.version != null) {
             if (compareVersions(entry.version, existing.version) <= 0) {
-                System.out.println("[SynapMc] install: " + name + " is up-to-date (" + existing.version + "), skipping.");
+                SynapMcShared.info("[SynapMc] install: " + name + " is up-to-date (" + existing.version + "), skipping.");
                 return existing.path;
             }
         }
@@ -162,12 +172,12 @@ public class RepoManager {
         try {
             byte[] bytes = SynapMcShared.core.httpGet(entry.source);
             if (bytes == null || bytes.length == 0) {
-                System.err.println("[SynapMc] install: empty response from " + entry.source);
+                SynapMcShared.error("[SynapMc] install: empty response from " + entry.source);
                 return null;
             }
             Files.write(destFile.toPath(), bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
-            System.err.println("[SynapMc] install: download failed for " + name + ": " + e.getMessage());
+            SynapMcShared.error("[SynapMc] install: download failed for " + name + ": " + e.getMessage());
             return null;
         }
 
@@ -182,7 +192,7 @@ public class RepoManager {
             applyRegister(entry, destFile);
         }
 
-        System.out.println("[SynapMc] Installed " + name + " -> " + destFile.getAbsolutePath());
+        SynapMcShared.info("[SynapMc] Installed " + name + " -> " + destFile.getAbsolutePath());
 
         if (SynapMcShared.server != null && SynapMcShared.server.hasClients()) {
             Map<String, String> notif = new LinkedHashMap<String, String>();
@@ -198,15 +208,16 @@ public class RepoManager {
     public boolean removeScript(String name) {
         InstalledInfo info = installed.remove(name.toLowerCase());
         if (info == null) {
-            System.err.println("[SynapMc] remove: script not installed: " + name);
+            SynapMcShared.error("[SynapMc] remove: script not installed: " + name);
             return false;
         }
         File f = new File(info.path);
         if (f.exists() && !f.delete()) {
-            System.err.println("[SynapMc] remove: could not delete file: " + info.path);
+            SynapMcShared.error("[SynapMc] remove: could not delete file: " + info.path);
         }
         removeTrigger(f.getName());
         saveInstalledIndex();
+        pruneEmptyDirs(f);
         return true;
     }
 
@@ -237,7 +248,7 @@ public class RepoManager {
     public String installScript(String name, String location, String repoName) {
         ScriptEntry entry = findEntry(name, repoName);
         if (entry == null) {
-            System.err.println("[SynapMc] install: script '" + name + "' not found in repo '" + repoName + "'");
+            SynapMcShared.error("[SynapMc] install: script '" + name + "' not found in repo '" + repoName + "'");
             return null;
         }
         return installScript(name, location, new HashSet<String>());
@@ -246,22 +257,21 @@ public class RepoManager {
     public String installJar(String name, String repoScope) {
         ScriptEntry entry = repoScope != null ? findEntry(name, repoScope) : findEntry(name);
         if (entry == null) {
-            System.err.println("[SynapMc] installJar: script not found: " + name);
+            SynapMcShared.error("[SynapMc] installJar: script not found: " + name);
             return null;
         }
 
-        // 2.0.0 and community edition use an /Extensions/ folder; null or 1.9.2 go next to the running JAR
+      
         String jsmVer = entry.jsmacrosVersion != null ? entry.jsmacrosVersion.toLowerCase() : "";
         File jarDir;
         if (jsmVer.equals("2.0.0") || jsmVer.equals("community")) {
             jarDir = new File(roamingDir.getParentFile(), "Extensions");
         } else {
-            // null or "1.9.2" — place alongside the running SynapMc JAR
             try {
                 java.security.CodeSource cs = RepoManager.class.getProtectionDomain().getCodeSource();
                 jarDir = cs != null ? new File(cs.getLocation().toURI()).getParentFile() : roamingDir;
             } catch (Exception e) {
-                System.err.println("[SynapMc] installJar: could not locate JAR dir, falling back to roaming: " + e.getMessage());
+                SynapMcShared.error("[SynapMc] installJar: could not locate JAR dir, falling back to roaming: " + e.getMessage());
                 jarDir = roamingDir;
             }
         }
@@ -273,12 +283,12 @@ public class RepoManager {
         try {
             byte[] bytes = SynapMcShared.core.httpGet(entry.source);
             if (bytes == null || bytes.length == 0) {
-                System.err.println("[SynapMc] installJar: empty response from " + entry.source);
+                SynapMcShared.error("[SynapMc] installJar: empty response from " + entry.source);
                 return null;
             }
             Files.write(destFile.toPath(), bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
-            System.err.println("[SynapMc] installJar: download failed for " + name + ": " + e.getMessage());
+            SynapMcShared.error("[SynapMc] installJar: download failed for " + name + ": " + e.getMessage());
             return null;
         }
 
@@ -289,15 +299,15 @@ public class RepoManager {
         installed.put(name.toLowerCase(), info);
         saveInstalledIndex();
 
-        System.out.println("[SynapMc] Installed JAR: " + name + " -> " + destFile.getAbsolutePath());
-        System.out.println("[SynapMc] *** Restart JsMacros for the extension to load. ***");
+        SynapMcShared.info("[SynapMc] Installed JAR: " + name + " -> " + destFile.getAbsolutePath());
+        SynapMcShared.info("[SynapMc] *** Restart JsMacros for the extension to load. ***");
         return destFile.getAbsolutePath();
     }
 
     public String installExe(String name, String repoScope) {
         ScriptEntry entry = repoScope != null ? findEntry(name, repoScope) : findEntry(name);
         if (entry == null) {
-            System.err.println("[SynapMc] installExe: script not found: " + name);
+            SynapMcShared.error("[SynapMc] installExe: script not found: " + name);
             return null;
         }
 
@@ -315,16 +325,16 @@ public class RepoManager {
         try {
             byte[] bytes = SynapMcShared.core.httpGet(entry.source);
             if (bytes == null || bytes.length == 0) {
-                System.err.println("[SynapMc] installExe: empty response from " + entry.source);
+                SynapMcShared.error("[SynapMc] installExe: empty response from " + entry.source);
                 return null;
             }
             Files.write(destFile.toPath(), bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
-            System.err.println("[SynapMc] installExe: download failed for " + name + ": " + e.getMessage());
+            SynapMcShared.error("[SynapMc] installExe: download failed for " + name + ": " + e.getMessage());
             return null;
         }
 
-        System.out.println("[SynapMc] Downloaded EXE to Desktop: " + destFile.getAbsolutePath());
+        SynapMcShared.info("[SynapMc] Downloaded EXE to Desktop: " + destFile.getAbsolutePath());
         return destFile.getAbsolutePath();
     }
 
@@ -357,6 +367,9 @@ public class RepoManager {
         return getString(name, false);
     }
 
+    /**
+     * @param source if true, always fetches from the manifest source URL,
+     */
     public String getString(String name, boolean source) {
         if (!source) {
             InstalledInfo info = installed.get(name.toLowerCase());
@@ -366,7 +379,7 @@ public class RepoManager {
                     try {
                         return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                     } catch (IOException e) {
-                        System.err.println("[SynapMc] getString: read failed for " + info.path + ": " + e.getMessage());
+                        SynapMcShared.error("[SynapMc] getString: read failed for " + info.path + ": " + e.getMessage());
                     }
                 }
             }
@@ -374,14 +387,14 @@ public class RepoManager {
 
         ScriptEntry entry = findEntry(name);
         if (entry == null || entry.source == null) {
-            System.err.println("[SynapMc] getString: script not found: " + name);
+            SynapMcShared.error("[SynapMc] getString: script not found: " + name);
             return null;
         }
 
         try {
             return SynapMcShared.core.httpGetText(entry.source);
         } catch (Exception e) {
-            System.err.println("[SynapMc] getString: fetch failed for " + name + ": " + e.getMessage());
+            SynapMcShared.error("[SynapMc] getString: fetch failed for " + name + ": " + e.getMessage());
             return null;
         }
     }
@@ -411,21 +424,21 @@ public class RepoManager {
             else if (fname.endsWith(".js")) lang = "js";
             else if (fname.endsWith(".py")) lang = "py";
             if (lang == null) {
-                System.err.println("[SynapMc] applyRegister: unknown language for service: " + fname);
+                SynapMcShared.error("[SynapMc] applyRegister: unknown language for service: " + fname);
                 return;
             }
             try {
                 if (!SynapMcShared.core.hasExtensionForFile(scriptFile)) {
-                    System.err.println("[SynapMc] No language extension found for " + fname);
+                    SynapMcShared.error("[SynapMc] No language extension found for " + fname);
                     return;
                 }
                 String content = new String(Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
                 final String finalLang = lang;
                 SynapMcShared.core.exec(finalLang, content, scriptFile,
-                    ex -> System.err.println("[SynapMc] service error in " + fname + ": " + ex.getMessage()));
-                System.out.println("[SynapMc] Started service: " + entry.name);
+                    ex -> SynapMcShared.error("[SynapMc] service error in " + fname + ": " + ex.getMessage()));
+                SynapMcShared.info("[SynapMc] Started service: " + entry.name);
             } catch (Exception e) {
-                System.err.println("[SynapMc] applyRegister: failed to start service " + entry.name + ": " + e.getMessage());
+                SynapMcShared.error("[SynapMc] applyRegister: failed to start service " + entry.name + ": " + e.getMessage());
             }
             return;
         }
@@ -443,7 +456,7 @@ public class RepoManager {
             } else if ("event".equalsIgnoreCase(reg.type)) {
                 triggerTypeValue = Enum.valueOf((Class<Enum>) triggerTypeClass, "EVENT");
             } else {
-                System.err.println("[SynapMc] applyRegister: unknown trigger type: " + reg.type);
+                SynapMcShared.error("[SynapMc] applyRegister: unknown trigger type: " + reg.type);
                 return;
             }
 
@@ -476,12 +489,12 @@ public class RepoManager {
             Method addMethod = registry.getClass().getMethod("addScriptTrigger", triggerClass);
             addMethod.invoke(registry, trigger);
 
-            System.out.println("[SynapMc] Registered trigger for " + entry.name + " (" + reg.type + ")");
+            SynapMcShared.info("[SynapMc] Registered trigger for " + entry.name + " (" + reg.type + ")");
 
         } catch (ClassNotFoundException e) {
-            System.err.println("[SynapMc] applyRegister: ScriptTrigger class not found: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] applyRegister: ScriptTrigger class not found: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("[SynapMc] applyRegister: failed for " + entry.name + ": " + e);
+            SynapMcShared.error("[SynapMc] applyRegister: failed for " + entry.name + ": " + e);
         }
     }
 
@@ -492,7 +505,7 @@ public class RepoManager {
     private void fetchAndCacheManifest(String url, Set<String> inFlight) throws Exception {
         String normalizedUrl = url.split("\\?")[0];
         if (!inFlight.add(normalizedUrl)) {
-            System.err.println("[SynapMc] Manifest cycle detected, skipping: " + url);
+            SynapMcShared.error("[SynapMc] Manifest cycle detected, skipping: " + url);
             return;
         }
         fetchAndCacheManifestInternal(url, inFlight);
@@ -502,6 +515,11 @@ public class RepoManager {
         String fetchUrl = url + (url.contains("?") ? "&" : "?") + "_t=" + System.currentTimeMillis();
         String json = SynapMcShared.core.httpGetText(fetchUrl);
         if (json == null || json.isEmpty()) {
+            RepoManifest generated = tryGenerateGithubManifest(url);
+            if (generated != null) {
+                cacheManifest(generated, url);
+                return;
+            }
             throw new IOException("Empty response from " + url);
         }
 
@@ -509,10 +527,20 @@ public class RepoManager {
         try {
             manifest = GSON.fromJson(json, RepoManifest.class);
         } catch (JsonSyntaxException e) {
+            RepoManifest generated = tryGenerateGithubManifest(url);
+            if (generated != null) {
+                cacheManifest(generated, url);
+                return;
+            }
             throw new IOException("Invalid JSON from " + url + ": " + e.getMessage());
         }
 
         if (manifest.name == null || manifest.name.isEmpty()) {
+            RepoManifest generated = tryGenerateGithubManifest(url);
+            if (generated != null) {
+                cacheManifest(generated, url);
+                return;
+            }
             throw new IOException("Manifest from " + url + " has no 'name' field");
         }
 
@@ -524,13 +552,7 @@ public class RepoManager {
             }
         }
 
-        File cacheFile = new File(roamingDir, "repos/" + sanitizeFilename(manifest.name) + ".json");
-        Files.write(cacheFile.toPath(),
-                GSON.toJson(manifest).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
-        manifests.put(manifest.name.toLowerCase(), manifest);
-        lastFetchedName = manifest.name.toLowerCase();
+        cacheManifest(manifest, url);
 
         if (manifest.repos != null) {
             for (String subUrl : manifest.repos) {
@@ -538,10 +560,185 @@ public class RepoManager {
                 try {
                     fetchAndCacheManifest(subUrl, inFlight);
                 } catch (Exception e) {
-                    System.err.println("[SynapMc] Failed to fetch sub-repo " + subUrl + ": " + e.getMessage());
+                    SynapMcShared.error("[SynapMc] Failed to fetch sub-repo " + subUrl + ": " + e.getMessage());
                 }
             }
         }
+    }
+
+    private void cacheManifest(RepoManifest manifest, String url) throws IOException {
+        manifest.manifestUrl = url;
+        if (manifest.scripts != null) {
+            for (ScriptEntry entry : manifest.scripts) {
+                entry.repoName = manifest.name;
+            }
+        }
+        File cacheFile = new File(roamingDir, "repos/" + sanitizeFilename(manifest.name) + ".json");
+        Files.write(cacheFile.toPath(),
+                GSON.toJson(manifest).getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        manifests.put(manifest.name.toLowerCase(), manifest);
+        lastFetchedName = manifest.name.toLowerCase();
+    }
+
+    private RepoManifest tryGenerateGithubManifest(String url) {
+        try {
+            GithubSource source = parseGithubSource(url);
+            if (source == null) return null;
+            if (source.branch == null || source.branch.isEmpty()) {
+                source.branch = fetchDefaultBranch(source.owner, source.repo);
+            }
+            if (source.branch == null || source.branch.isEmpty()) source.branch = "main";
+
+            String api = "https://api.github.com/repos/" + source.owner + "/" + source.repo
+                    + "/git/trees/" + source.branch + "?recursive=1";
+            JsonObject treeRoot = new JsonParser().parse(SynapMcShared.core.httpGetText(api)).getAsJsonObject();
+            JsonArray tree = treeRoot.has("tree") ? treeRoot.getAsJsonArray("tree") : null;
+            if (tree == null) return null;
+
+            RepoManifest manifest = new RepoManifest();
+            manifest.name = source.repo;
+            manifest.source = url;
+            manifest.author = source.owner;
+            manifest.imageUrl = "https://github.com/" + source.owner + ".png";
+            manifest.description = "Auto-generated from GitHub source.";
+
+            String prefix = source.path != null && !source.path.isEmpty()
+                    ? trimSlashes(source.path) + "/" : "";
+            for (JsonElement element : tree) {
+                JsonObject node = element.getAsJsonObject();
+                if (!"blob".equals(stringField(node, "type"))) continue;
+                String path = stringField(node, "path");
+                if (path == null || !matchesGithubSourcePath(source, prefix, path) || !isScriptPath(path)) continue;
+                ScriptEntry entry = new ScriptEntry();
+                entry.name = scriptName(path);
+                entry.author = source.owner;
+                entry.source = "https://raw.githubusercontent.com/" + source.owner + "/" + source.repo
+                        + "/" + source.branch + "/" + path;
+                entry.destination = "scripts/macros/";
+                entry.version = "1.0";
+                entry.description = "Auto-generated macro from " + path;
+                entry.category = "macro";
+                entry.isExecuteReady = true;
+                manifest.scripts.add(entry);
+            }
+            if (manifest.scripts.isEmpty()) return null;
+            SynapMcShared.info("[SynapMc] Auto-generated manifest for GitHub repo " + source.owner + "/" + source.repo
+                    + " (" + manifest.scripts.size() + " scripts).");
+            return manifest;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String fetchDefaultBranch(String owner, String repo) {
+        try {
+            String api = "https://api.github.com/repos/" + owner + "/" + repo;
+            JsonObject root = new JsonParser().parse(SynapMcShared.core.httpGetText(api)).getAsJsonObject();
+            return stringField(root, "default_branch");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private GithubSource parseGithubSource(String url) {
+        try {
+            String clean = url.replace('\\', '/').replaceAll("[?#].*", "");
+            GithubSource source = new GithubSource();
+            if (clean.contains("raw.githubusercontent.com/")) {
+                String[] parts = clean.substring(clean.indexOf("raw.githubusercontent.com/") + 26).split("/");
+                if (parts.length < 4) return null;
+                source.owner = parts[0];
+                source.repo = parts[1];
+                source.branch = parts[2];
+                setSourcePath(source, join(parts, 3));
+                return source;
+            }
+            if (!clean.contains("github.com/")) return null;
+            String[] parts = clean.substring(clean.indexOf("github.com/") + 11).split("/");
+            if (parts.length < 2) return null;
+            source.owner = parts[0];
+            source.repo = parts[1].replaceAll("\\.git$", "");
+            if (parts.length >= 4 && "tree".equals(parts[2])) {
+                source.branch = parts[3];
+                source.path = parts.length > 4 ? join(parts, 4) : "";
+            } else if (parts.length >= 4 && "blob".equals(parts[2])) {
+                source.branch = parts[3];
+                setSourcePath(source, parts.length > 4 ? join(parts, 4) : "");
+            } else {
+                source.path = "";
+            }
+            return source;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String stringField(JsonObject obj, String field) {
+        return obj != null && obj.has(field) && !obj.get(field).isJsonNull()
+                ? obj.get(field).getAsString() : null;
+    }
+
+    private boolean isScriptPath(String path) {
+        String lower = path.toLowerCase();
+        return lower.endsWith(".lua") || lower.endsWith(".js") || lower.endsWith(".py");
+    }
+
+    private boolean matchesGithubSourcePath(GithubSource source, String prefix, String path) {
+        if (source.singleScriptPath != null && !source.singleScriptPath.isEmpty()) {
+            return path.equals(source.singleScriptPath);
+        }
+        return path.startsWith(prefix);
+    }
+
+    private void setSourcePath(GithubSource source, String rawPath) {
+        String path = trimSlashes(rawPath != null ? rawPath : "");
+        if (isScriptPath(path)) {
+            source.singleScriptPath = path;
+            source.path = parentPath(path);
+        } else if (looksLikeFile(path)) {
+            source.path = parentPath(path);
+        } else {
+            source.path = path;
+        }
+    }
+
+    private boolean looksLikeFile(String path) {
+        if (path == null || path.isEmpty()) return false;
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        return name.contains(".");
+    }
+
+    private String parentPath(String path) {
+        int slash = path.lastIndexOf('/');
+        return slash > 0 ? path.substring(0, slash) : "";
+    }
+
+    private String scriptName(String path) {
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    private String trimSlashes(String value) {
+        return value.replaceAll("^/+", "").replaceAll("/+$", "");
+    }
+
+    private String join(String[] parts, int start) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < parts.length; i++) {
+            if (i > start) sb.append('/');
+            sb.append(parts[i]);
+        }
+        return sb.toString();
+    }
+
+    private static class GithubSource {
+        String owner;
+        String repo;
+        String branch;
+        String path;
+        String singleScriptPath;
     }
 
     private ScriptEntry findEntry(String name) {
@@ -604,7 +801,7 @@ public class RepoManager {
                 removeMethod.invoke(registry, t);
             }
         } catch (Exception e) {
-            System.err.println("[SynapMc] removeTrigger: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] removeTrigger: " + e.getMessage());
         }
     }
 
@@ -617,7 +814,7 @@ public class RepoManager {
             Map<String, InstalledInfo> loaded = GSON.fromJson(json, type);
             if (loaded != null) installed.putAll(loaded);
         } catch (Exception e) {
-            System.err.println("[SynapMc] Could not load installed.json: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] Could not load installed.json: " + e.getMessage());
         }
     }
 
@@ -628,7 +825,7 @@ public class RepoManager {
                     GSON.toJson(installed).getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
-            System.err.println("[SynapMc] Could not save installed.json: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] Could not save installed.json: " + e.getMessage());
         }
     }
 
@@ -667,4 +864,95 @@ public class RepoManager {
     public Map<String, String> getRepos() {
         return SynapMcShared.core.getConfiguredRepos();
     }
+
+    public Set<String> getFavorites() {
+        return java.util.Collections.unmodifiableSet(favorites);
+    }
+
+    public boolean isFavorite(String name) {
+        return favorites.contains(name.toLowerCase());
+    }
+
+    public void addFavorite(String name) {
+        favorites.add(name.toLowerCase());
+        saveFavorites();
+    }
+
+    public void removeFavorite(String name) {
+        favorites.remove(name.toLowerCase());
+        saveFavorites();
+    }
+
+    private void loadFavorites() {
+        File f = new File(roamingDir, "repos/favorites.json");
+        if (!f.exists()) return;
+        try {
+            String json = new String(java.nio.file.Files.readAllBytes(f.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            @SuppressWarnings("unchecked")
+            List<String> list = GSON.fromJson(json,
+                    com.google.gson.reflect.TypeToken.getParameterized(List.class, String.class).getType());
+            if (list != null) {
+                favorites.clear();
+                for (String s : list) favorites.add(s.toLowerCase());
+            }
+        } catch (Exception e) {
+            SynapMcShared.error("[SynapMc] Failed to load favorites: " + e.getMessage());
+        }
+    }
+
+    private void saveFavorites() {
+        File f = new File(roamingDir, "repos/favorites.json");
+        try {
+            java.nio.file.Files.write(f.toPath(),
+                    GSON.toJson(new ArrayList<String>(favorites)).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            SynapMcShared.error("[SynapMc] Failed to save favorites: " + e.getMessage());
+        }
+    }
+
+    private static final java.util.Set<String> PROTECTED_REL_PATHS;
+    static {
+        java.util.Set<String> s = new java.util.HashSet<String>();
+        s.add("scripts");
+        s.add("scripts/macros");
+        s.add("scripts/library");
+        s.add("scripts/load");
+        s.add("scripts/plugins");
+        PROTECTED_REL_PATHS = java.util.Collections.unmodifiableSet(s);
+    }
+
+    private void pruneEmptyDirs(File deletedFile) {
+        if (roamingDir == null) return;
+        // Build the set of protected absolute paths: static defaults + configured unify folders
+        java.util.Set<String> protectedPaths = new java.util.HashSet<String>();
+        for (String rel : PROTECTED_REL_PATHS) {
+            protectedPaths.add(new File(roamingDir, rel).getAbsolutePath());
+        }
+        protectedPaths.add(roamingDir.getAbsolutePath());
+        Map<String, String> unifyFolders = SynapMcShared.core != null
+                ? SynapMcShared.core.getUnifyFolders() : null;
+        if (unifyFolders != null) {
+            for (String rel : unifyFolders.values()) {
+                protectedPaths.add(new File(roamingDir, rel).getAbsolutePath());
+            }
+        }
+
+        File dir = deletedFile.getParentFile();
+        while (dir != null) {
+            String abs = dir.getAbsolutePath();
+            if (protectedPaths.contains(abs)) break;
+            // Stop if outside roamingDir
+            if (!abs.startsWith(roamingDir.getAbsolutePath())) break;
+            String[] contents = dir.list();
+            if (contents != null && contents.length == 0) {
+                if (!dir.delete()) break;
+                dir = dir.getParentFile();
+            } else {
+                break;
+            }
+        }
+    }
 }
+

@@ -1,0 +1,23 @@
+{
+  "name": "Lua Scripts",
+  "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension",
+  "author": "Ghostmode65",
+  "scripts": [
+    {
+      "name": "Goto",
+      "author": "Ghostmode65",
+      "source": "",
+      "storeUrl": null,
+      "cost": null,
+      "destination": "scripts/unify/",
+      "version": "1.0.0",
+      "description": "Adds a /home commands but just named goto.",
+      "imageurl": null,
+      "category": "macro",
+      "isExecuteReady": false,
+      "jsmacrosVersion": null,
+      "server": null,
+      "register": null
+    }
+  ]
+}

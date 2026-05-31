@@ -3,6 +3,7 @@ package com.synapmc.model;
 import java.util.List;
 
 public class ScriptEntry {
+
     public String name;
     public String author;
     public String source;
@@ -17,4 +18,5 @@ public class ScriptEntry {
     public List<String> dependencies;
     public ScriptRegister register;
     public transient String repoName;
+
 }

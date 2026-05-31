@@ -56,12 +56,17 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
 
         SynapMcShared.core = this;
         SynapMcShared.roamingDir = roamingDir;
+        SynapMcShared.initGlobalConfig();
+        SynapMcShared.mergeGlobalConfig(cfg.unifyFolders, cfg.pathTags);
+        core.config.saveConfig();
 
         createDirs(roamingDir);
         RepoManager.getInstance().init(roamingDir);
 
-        if (cfg.unifyFolder) {
-            createUnifiedJunction(roamingDir);
+        if (cfg.unifyFolders != null && !cfg.unifyFolders.isEmpty()) {
+            for (Map.Entry<String, String> entry : cfg.unifyFolders.entrySet()) {
+                createUnifiedJunction(roamingDir, entry.getKey(), entry.getValue());
+            }
         }
 
         if (cfg.loadEnabled) {
@@ -76,7 +81,7 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
             try {
                 SynapMcShared.server.start();
             } catch (Exception e) {
-                System.err.println("[SynapMc] Failed to start TCP port on port " + cfg.tcpPort + ": " + e.getMessage());
+                SynapMcShared.error("[SynapMc] Failed to start TCP port on port " + cfg.tcpPort + ": " + e.getMessage());
             }
         }
     }
@@ -116,6 +121,12 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
     }
 
     @Override
+    public File getMinecraftDir() {
+        File dir = findMinecraftDir();
+        return dir != null ? dir : new File(System.getProperty("user.dir"));
+    }
+
+    @Override
     public Object getProfile() throws Exception {
         try {
             Method m = core.getClass().getMethod("getProfile");
@@ -133,6 +144,26 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
     @Override
     public boolean isAutoRegisterTriggers() {
         return core.config.getOptions(SynapMcConfig.class).autoRegisterTriggers;
+    }
+
+    @Override
+    public boolean isSilent() {
+        return core.config.getOptions(SynapMcConfig.class).silent;
+    }
+
+    @Override
+    public boolean isDebug() {
+        return core.config.getOptions(SynapMcConfig.class).debug;
+    }
+
+    @Override
+    public boolean isClientInfoPreAuth() {
+        return core.config.getOptions(SynapMcConfig.class).clientInfoPreAuth;
+    }
+
+    @Override
+    public Map<String, Object> getClientInfo() {
+        return buildClientInfo();
     }
 
     @Override
@@ -171,8 +202,17 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
     }
 
     @Override
+    public Map<String, String> getUnifyFolders() {
+        return core.config.getOptions(SynapMcConfig.class).unifyFolders;
+    }
+
+    @Override
+    public Map<String, String> getPathTags() {
+        return core.config.getOptions(SynapMcConfig.class).pathTags;
+    }
+
+    @Override
     public String getScriptTriggerClassName() {
-        // ⚠ Verify this class name exists in jsmacrosce 2.0.0.
         return "com.jsmacrosce.jsmacros.core.config.ScriptTrigger";
     }
 
@@ -187,19 +227,21 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
         String[] dirs = {
             "scripts/library", "scripts/library/main",
             "scripts/load", "scripts/macros",
-            "scripts/plugins", "logs", "assets", "repos"
+            "scripts/plugins", "projects", "logs", "assets",
+            "assets/images", "assets/sounds", "repos", "synapmc"
         };
         for (String rel : dirs) {
             new File(roamingDir, rel).mkdirs();
         }
     }
 
-    private void createUnifiedJunction(File roamingDir) {
-        File macrosTarget = new File(roamingDir, "scripts/macros");
+    private void createUnifiedJunction(File roamingDir, String junctionName, String roamingRelPath) {
+        File target = new File(roamingDir, roamingRelPath);
+        target.mkdirs();
         File instanceMacros = core.config.macroFolder;
         if (instanceMacros == null) return;
 
-        File junction = new File(instanceMacros, "unified");
+        File junction = new File(instanceMacros, junctionName);
         if (junction.exists()) return;
 
         try {
@@ -207,15 +249,15 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
             ProcessBuilder pb;
             if (os.contains("win")) {
                 pb = new ProcessBuilder("cmd", "/c", "mklink", "/J",
-                    junction.getAbsolutePath(), macrosTarget.getAbsolutePath());
+                    junction.getAbsolutePath(), target.getAbsolutePath());
             } else {
                 pb = new ProcessBuilder("ln", "-s",
-                    macrosTarget.getAbsolutePath(), junction.getAbsolutePath());
+                    target.getAbsolutePath(), junction.getAbsolutePath());
             }
             pb.redirectErrorStream(true);
             pb.start().waitFor();
         } catch (Exception e) {
-            System.err.println("[SynapMc] Could not create unified junction: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] Could not create junction '" + junctionName + "': " + e.getMessage());
         }
     }
 
@@ -230,18 +272,18 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
 
     private void execLoadScript(File file, String lang, SynapMcConfig cfg) {
         if (core.extensions.getExtensionForFile(file) == null) {
-            System.err.println("[SynapMc] No language extension found for " + file.getName());
+            SynapMcShared.error("[SynapMc] No language extension found for " + file.getName());
             return;
         }
         String content;
         try {
             content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            writeLog(file, e);
+            if (!cfg.silent) writeLog(file, e);
             return;
         }
         core.exec(lang, content, file, null, null, ex -> {
-            writeLog(file, ex);
+            if (!cfg.silent) writeLog(file, ex);
             if (SynapMcShared.server != null && SynapMcShared.server.hasClients()) {
                 SynapMcShared.server.broadcast(BridgeServer.errorJson(
                     ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName(),
@@ -249,9 +291,9 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
             }
             if (!cfg.silent) {
                 if (cfg.debug) {
-                    System.err.println("[SynapMc] Error in " + file.getName() + ": " + ex);
+                    SynapMcShared.error("[SynapMc] Error in " + file.getName() + ": " + ex);
                 } else {
-                    System.err.println("[SynapMc] \u00a7c" + file.getName() + " failed to load.");
+                    SynapMcShared.error("[SynapMc] \u00a7c" + file.getName() + " failed to load.");
                 }
             }
         });
@@ -272,6 +314,85 @@ public class SynapMcExtension implements Extension, LibraryExtension, ICoreAcces
     private File resolveDir(String configured, File roamingDir, String defaultRel) {
         if (configured != null && !configured.isEmpty()) return new File(configured);
         return new File(roamingDir, defaultRel);
+    }
+
+    private File findMinecraftDir() {
+        Object mc = callStatic("net.minecraft.client.MinecraftClient", "getInstance");
+        if (mc == null) mc = callStatic("net.minecraft.class_310", "method_1551");
+        if (mc == null) return null;
+        Object dir = readField(mc, "runDirectory");
+        if (dir == null) dir = readField(mc, "field_1697");
+        return dir instanceof File ? (File) dir : null;
+    }
+
+    private Map<String, Object> buildClientInfo() {
+        Map<String, Object> info = new LinkedHashMap<String, Object>();
+        info.put("version", getClientVersion());
+        Object mc = callStatic("net.minecraft.client.MinecraftClient", "getInstance");
+        if (mc == null) mc = callStatic("net.minecraft.class_310", "method_1551");
+        Object session = mc != null ? call(mc, "getSession") : null;
+        if (session == null && mc != null) session = call(mc, "method_1548");
+        String name = session != null ? stringValue(call(session, "getUsername")) : null;
+        if (name == null && session != null) name = stringValue(call(session, "method_1676"));
+        String uuid = session != null ? stringValue(call(session, "getUuid")) : null;
+        if (uuid == null && session != null) uuid = stringValue(call(session, "method_44717"));
+        if (name != null) info.put("name", name);
+        if (uuid != null) {
+            info.put("uuid", uuid);
+            info.put("headUrl", "https://avatars.oc.tc/avatars/" + uuid.replace("-", "") + "?overlay");
+        }
+        return info;
+    }
+
+    private String getClientVersion() {
+        try {
+            Object sharedConstants = callStatic("net.minecraft.SharedConstants", "getGameVersion");
+            if (sharedConstants == null) sharedConstants = callStatic("net.minecraft.class_155", "method_16673");
+            String name = sharedConstants != null ? stringValue(call(sharedConstants, "getName")) : null;
+            if (name == null && sharedConstants != null) name = stringValue(call(sharedConstants, "method_48019"));
+            return name != null ? name : "unknown";
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private Object call(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value != null ? value.toString() : null;
+    }
+
+    private Object callStatic(String className, String methodName) {
+        try {
+            Class<?> type = Class.forName(className);
+            return type.getMethod(methodName).invoke(null);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Object readField(Object target, String fieldName) {
+        try {
+            java.lang.reflect.Field field = target.getClass().getField(fieldName);
+            field.setAccessible(true);
+            return field.get(target);
+        } catch (Exception ignored) {
+            try {
+                java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
+        }
     }
 
     private String detectLang(File f) {

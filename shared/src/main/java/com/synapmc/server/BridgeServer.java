@@ -19,6 +19,7 @@ public class BridgeServer {
     private final String password;
     private ServerSocket serverSocket;
     private final Set<PrintWriter> clients = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<PrintWriter, ClientInfo> clientInfo = new ConcurrentHashMap<PrintWriter, ClientInfo>();
 
     public BridgeServer(int port, String password) {
         this.port = port;
@@ -34,7 +35,7 @@ public class BridgeServer {
         Thread t = new Thread(this::acceptLoop, "SynapMc-TCPPort-Accept");
         t.setDaemon(true);
         t.start();
-        System.out.println("[SynapMc] TCP port listening on port " + port);
+        SynapMcShared.info("[SynapMc] TCP port listening on port " + port);
     }
 
     public void stop() {
@@ -49,7 +50,7 @@ public class BridgeServer {
                 Socket client = serverSocket.accept();
                 handleClient(client);
             } catch (IOException e) {
-                if (!serverSocket.isClosed()) e.printStackTrace();
+                if (!serverSocket.isClosed()) SynapMcShared.error("[SynapMc] TCP accept failed: " + e.getMessage());
             }
         }
     }
@@ -59,12 +60,14 @@ public class BridgeServer {
         try {
             writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
         } catch (IOException e) {
-            e.printStackTrace();
+            SynapMcShared.error("[SynapMc] TCP client failed: " + e.getMessage());
             return;
         }
 
         Thread t = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                ClientInfo client = new ClientInfo(writer, socket);
+                sendClientInfo(writer);
                 if (requiresAuth()) {
                     String line = reader.readLine();
                     if (line == null) return;
@@ -76,6 +79,7 @@ public class BridgeServer {
                             writer.println(errorJson("Authentication failed", null, -1));
                             return;
                         }
+                        updateClientName(client, msg);
                     } catch (Exception e) {
                         writer.println(errorJson("Authentication failed: invalid message", null, -1));
                         return;
@@ -84,19 +88,21 @@ public class BridgeServer {
                 }
 
                 clients.add(writer);
+                clientInfo.put(writer, client);
                 if (!requiresAuth()) {
                     writer.println("{\"type\":\"connected\",\"status\":\"ok\"}");
                 }
-                System.out.println("[SynapMc] Bridge client connected. (" + clients.size() + " connected)");
+                SynapMcShared.info("[SynapMc] Bridge client connected. (" + clients.size() + " connected)");
                 String line;
                 while ((line = reader.readLine()) != null) {
                     String msg = line.trim();
-                    if (!msg.isEmpty()) handleMessage(writer, msg);
+                    if (!msg.isEmpty()) handleMessage(client, msg);
                 }
             } catch (IOException ignored) {
             } finally {
                 clients.remove(writer);
-                System.out.println("[SynapMc] Bridge client disconnected. (" + clients.size() + " connected)");
+                clientInfo.remove(writer);
+                SynapMcShared.info("[SynapMc] Bridge client disconnected. (" + clients.size() + " connected)");
                 try { socket.close(); } catch (IOException ignored) {}
             }
         }, "SynapMc-TCPPort-Client");
@@ -104,29 +110,35 @@ public class BridgeServer {
         t.start();
     }
 
-    private void handleMessage(PrintWriter sender, String json) {
+    private void handleMessage(ClientInfo client, String json) {
         try {
             JsonObject msg = new JsonParser().parse(json).getAsJsonObject();
             String type = msg.has("type") ? msg.get("type").getAsString() : "";
 
             switch (type) {
+                case "identify":
+                case "client_name": {
+                    updateClientName(client, msg);
+                    client.writer.println("{\"type\":\"identified\",\"name\":\"" + escapeJson(client.name) + "\"}");
+                    break;
+                }
                 case "exec": {
                     String lang = msg.has("lang") ? msg.get("lang").getAsString() : "js";
                     String script = msg.has("script") ? msg.get("script").getAsString() : "";
                     File fakeFile = new File(new File("").getAbsoluteFile(), "synapmc-tcpport." + lang);
                     SynapMcShared.core.exec(lang, script, fakeFile, ex -> {
                         String err = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
-                        sender.println(errorJson(err, null, -1));
+                        client.writer.println(errorJson(err, null, -1));
                     });
                     break;
                 }
                 default: {
-                    sender.println(errorJson("Unknown message type: " + type, null, -1));
+                    client.writer.println(errorJson("Unknown message type: " + type, null, -1));
                     break;
                 }
             }
         } catch (Exception e) {
-            sender.println(errorJson("Failed to parse message: " + e.getMessage(), null, -1));
+            client.writer.println(errorJson("Failed to parse message: " + e.getMessage(), null, -1));
         }
     }
 
@@ -136,8 +148,27 @@ public class BridgeServer {
         }
     }
 
+    public boolean sendTo(String target, String json) {
+        ClientInfo client = findClient(target);
+        if (client == null) return false;
+        client.writer.println(json);
+        return true;
+    }
+
     public boolean hasClients() {
         return !clients.isEmpty();
+    }
+
+    public boolean hasClient(String target) {
+        return findClient(target) != null;
+    }
+
+    private void sendClientInfo(PrintWriter writer) {
+        if (SynapMcShared.core == null || !SynapMcShared.core.isClientInfoPreAuth()) return;
+        JsonObject obj = new JsonObject();
+        obj.addProperty("type", "client_info");
+        obj.add("client", GSON.toJsonTree(SynapMcShared.core.getClientInfo()));
+        writer.println(GSON.toJson(obj));
     }
 
     public static String errorJson(String message, String file, int line) {
@@ -147,5 +178,50 @@ public class BridgeServer {
         if (file != null) obj.addProperty("file", file);
         if (line > -1) obj.addProperty("line", line);
         return GSON.toJson(obj);
+    }
+
+    private void updateClientName(ClientInfo client, JsonObject msg) {
+        if (msg == null || !msg.has("name") || msg.get("name").isJsonNull()) return;
+        String name = msg.get("name").getAsString();
+        if (name != null && !name.trim().isEmpty()) client.name = name.trim();
+    }
+
+    private ClientInfo findClient(String target) {
+        if (target == null || target.trim().isEmpty()) return null;
+        String needle = target.trim();
+        for (ClientInfo client : clientInfo.values()) {
+            if (client.matches(needle)) return client;
+        }
+        return null;
+    }
+
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
+
+    private static class ClientInfo {
+        final PrintWriter writer;
+        final String ip;
+        final String host;
+        final int port;
+        volatile String name;
+
+        ClientInfo(PrintWriter writer, Socket socket) {
+            this.writer = writer;
+            this.ip = socket.getInetAddress() != null ? socket.getInetAddress().getHostAddress() : "";
+            this.host = socket.getInetAddress() != null ? socket.getInetAddress().getHostName() : "";
+            this.port = socket.getPort();
+        }
+
+        boolean matches(String target) {
+            String lower = target.toLowerCase();
+            return (name != null && name.equalsIgnoreCase(target))
+                    || ip.equals(target)
+                    || host.equalsIgnoreCase(target)
+                    || (ip + ":" + port).equals(target)
+                    || (host + ":" + port).equalsIgnoreCase(lower);
+        }
     }
 }

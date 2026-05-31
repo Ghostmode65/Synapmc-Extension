@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-
 public class FSupabase {
 
     private static final Gson GSON = new Gson();
@@ -30,6 +29,9 @@ public class FSupabase {
         this.anonKey = anonKey;
     }
 
+    /**
+     * Must be called before {@link #execute()} or {@link #single()}.
+     */
     public FSupabase from(String table) {
         this.table = table;
         return this;
@@ -45,7 +47,6 @@ public class FSupabase {
         return this;
     }
 
-
     public List<Map<String, Object>> execute() {
         String json = fetch();
         if (json == null) return Collections.emptyList();
@@ -57,7 +58,6 @@ public class FSupabase {
             return Collections.emptyList();
         }
     }
-
     public Map<String, Object> single() {
         List<Map<String, Object>> rows = execute();
         return rows.isEmpty() ? null : rows.get(0);

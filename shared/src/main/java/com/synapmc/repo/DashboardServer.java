@@ -62,13 +62,17 @@ public class DashboardServer {
             httpServer.createContext("/api/manifest/fetch", new ManifestFetchHandler());
             httpServer.createContext("/api/scripts/reveal", new RevealHandler());
             httpServer.createContext("/api/exec", new ExecApiHandler());
+            httpServer.createContext("/api/popular", new PopularHandler());
+            httpServer.createContext("/api/favorites", new FavoritesApiHandler());
+            httpServer.createContext("/api/favorites/add", new FavoritesAddHandler());
+            httpServer.createContext("/api/favorites/remove", new FavoritesRemoveHandler());
 
             httpServer.setExecutor(Executors.newCachedThreadPool());
             httpServer.start();
 
-            System.out.println("[SynapMc] Dashboard available at http://127.0.0.1:" + port + "/");
+            SynapMcShared.info("[SynapMc] Dashboard available at http://127.0.0.1:" + port + "/");
         } catch (IOException e) {
-            System.err.println("[SynapMc] Failed to start dashboard server: " + e.getMessage());
+            SynapMcShared.error("[SynapMc] Failed to start dashboard server: " + e.getMessage());
         }
     }
 
@@ -98,8 +102,8 @@ public class DashboardServer {
                 }
                 pb.start();
             } catch (Exception e) {
-                System.err.println("[SynapMc] Could not open browser: " + e.getMessage());
-                System.out.println("[SynapMc] Open manually: " + url);
+                SynapMcShared.error("[SynapMc] Could not open browser: " + e.getMessage());
+                SynapMcShared.info("[SynapMc] Open manually: " + url);
             }
         }
     }
@@ -146,6 +150,9 @@ public class DashboardServer {
                     row.put("repoSource", manifest.source);
                     row.put("repoDiscordUrl", manifest.discordUrl);
                     row.put("repoDonateUrl", manifest.donateUrl);
+                    row.put("repoImageUrl", manifest.imageUrl);
+                    row.put("repoDescription", manifest.description);
+                    row.put("favorited", RepoManager.getInstance().isFavorite(entry.name));
                     RepoManager.InstalledInfo info = rm.getInstalled().get(entry.name.toLowerCase());
                     row.put("installed", info != null);
                     row.put("installedVersion", info != null ? info.version : null);
@@ -506,19 +513,137 @@ public class DashboardServer {
                 sendResponse(exchange, 400, "application/json", "{\"error\":\"Missing name\"}");
                 return;
             }
-            if (SynapMcShared.server == null || !SynapMcShared.server.hasClients()) {
-                sendResponse(exchange, 503, "application/json", "{\"error\":\"TCP Port not connected\"}");
+            RepoManager repoManager = RepoManager.getInstance();
+            ScriptEntry entry = repoManager.findEntryPublic(scriptName);
+            if (entry == null) {
+                sendResponse(exchange, 404, "application/json",
+                        "{\"error\":\"Script not found: " + escapeJson(scriptName) + "\"}");
                 return;
             }
-            String content = RepoManager.getInstance().getString(scriptName);
+            if (!entry.isExecuteReady) {
+                sendResponse(exchange, 400, "application/json",
+                        "{\"error\":\"Script is not marked execute-ready: " + escapeJson(scriptName) + "\"}");
+                return;
+            }
+            String content = repoManager.getString(scriptName);
             if (content == null) {
                 sendResponse(exchange, 404, "application/json",
                         "{\"error\":\"Script not found: " + escapeJson(scriptName) + "\"}");
                 return;
             }
-            String execMsg = "{\"type\":\"exec\",\"lang\":\"lua\",\"script\":\"" + escapeJson(content) + "\"}";
-            SynapMcShared.server.broadcast(execMsg);
+            String lang = detectLang(entry.source);
+            if (lang == null) {
+                RepoManager.InstalledInfo info = repoManager.getInstalled().get(scriptName.toLowerCase());
+                lang = info != null ? detectLang(info.path) : null;
+            }
+            if (lang == null) {
+                sendResponse(exchange, 400, "application/json",
+                        "{\"error\":\"Could not detect script language for: " + escapeJson(scriptName) + "\"}");
+                return;
+            }
+            File fakeFile = new File(new File("").getAbsoluteFile(), "synapmc-dashboard." + lang);
+            final String[] error = new String[1];
+            SynapMcShared.core.exec(lang, content, fakeFile, ex -> {
+                String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+                error[0] = msg;
+            });
+            if (error[0] != null) {
+                sendResponse(exchange, 500, "application/json", "{\"error\":\"" + escapeJson(error[0]) + "\"}");
+                return;
+            }
             sendResponse(exchange, 200, "application/json", "{\"ok\":true}");
+        }
+    }
+
+    private class PopularHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "text/plain", "Method Not Allowed");
+                return;
+            }
+            // Collect popularRepos URLs from all loaded manifests
+            List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+            Map<String, String> configuredRepos = SynapMcShared.core != null
+                    ? SynapMcShared.core.getConfiguredRepos()
+                    : new LinkedHashMap<String, String>();
+            for (com.synapmc.model.RepoManifest manifest : RepoManager.getInstance().getManifests().values()) {
+                if (manifest.popularRepos == null) continue;
+                for (String url : manifest.popularRepos) {
+                    Map<String, Object> entry = new LinkedHashMap<String, Object>();
+                    entry.put("url", url);
+                    // Derive display name: second-to-last path segment
+                    String name = url.replaceAll("[?#].*", "");
+                    int sl = name.lastIndexOf('/');
+                    if (sl >= 0) name = name.substring(0, sl);
+                    sl = name.lastIndexOf('/');
+                    if (sl >= 0) name = name.substring(sl + 1);
+                    entry.put("name", name.isEmpty() ? url : name);
+                    entry.put("added", configuredRepos.containsValue(url));
+                    result.add(entry);
+                }
+            }
+            sendResponse(exchange, 200, "application/json; charset=utf-8", GSON.toJson(result));
+        }
+    }
+
+    private class FavoritesApiHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "text/plain", "Method Not Allowed");
+                return;
+            }
+            sendResponse(exchange, 200, "application/json; charset=utf-8",
+                    GSON.toJson(RepoManager.getInstance().getFavorites()));
+        }
+    }
+
+    private class FavoritesAddHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "text/plain", "Method Not Allowed");
+                return;
+            }
+            String body = new String(readAll(exchange.getRequestBody()), StandardCharsets.UTF_8);
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> req = GSON.fromJson(body, Map.class);
+                String name = req != null && req.get("name") != null ? req.get("name").toString() : null;
+                if (name == null || name.isEmpty()) {
+                    sendResponse(exchange, 400, "application/json", "{\"error\":\"Missing name\"}");
+                    return;
+                }
+                RepoManager.getInstance().addFavorite(name);
+                sendResponse(exchange, 200, "application/json", "{\"ok\":true}");
+            } catch (Exception e) {
+                sendResponse(exchange, 500, "application/json", "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+            }
+        }
+    }
+
+    private class FavoritesRemoveHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "text/plain", "Method Not Allowed");
+                return;
+            }
+            String body = new String(readAll(exchange.getRequestBody()), StandardCharsets.UTF_8);
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> req = GSON.fromJson(body, Map.class);
+                String name = req != null && req.get("name") != null ? req.get("name").toString() : null;
+                if (name == null || name.isEmpty()) {
+                    sendResponse(exchange, 400, "application/json", "{\"error\":\"Missing name\"}");
+                    return;
+                }
+                RepoManager.getInstance().removeFavorite(name);
+                sendResponse(exchange, 200, "application/json", "{\"ok\":true}");
+            } catch (Exception e) {
+                sendResponse(exchange, 500, "application/json", "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+            }
         }
     }
 
@@ -547,13 +672,14 @@ public class DashboardServer {
         s.append("nav button.active{color:#cc785c;border-bottom-color:#cc785c}");
         s.append("nav button:hover:not(.active){color:#d6cfc8}");
         s.append(".tab{display:none;padding:24px}.tab.active{display:block}");
-        s.append(".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}");
-        s.append(".card{background:#211e1b;border:1px solid #3a3530;border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s}");
+        s.append(".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;grid-auto-rows:360px}");
+        s.append(".card{background:#211e1b;border:1px solid #3a3530;border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s;overflow:hidden}");
         s.append(".card:hover{border-color:#5a524a}");
-        s.append(".card-img{width:100%;height:120px;object-fit:cover;border-radius:6px;background:#2c2825}");
-        s.append(".card-title{font-size:1rem;font-weight:600;color:#f5f0eb}");
+        s.append(".card-img-wrap{position:relative;width:100%;height:120px;border-radius:6px;background:#2c2825;overflow:hidden;flex-shrink:0}");
+        s.append(".card-img{width:100%;height:100%;object-fit:cover;display:block}");
+        s.append(".card-title{font-size:1rem;font-weight:600;color:#f5f0eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}");
         s.append(".card-meta{font-size:.75rem;color:#78716c}");
-        s.append(".card-desc{font-size:.85rem;color:#a8a29e;line-height:1.55}");
+        s.append(".card-desc{font-size:.85rem;color:#a8a29e;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}");
         s.append(".badges{display:flex;flex-wrap:wrap;gap:6px}");
         s.append(".badge{padding:2px 8px;border-radius:8px;font-size:.7rem;font-weight:600}");
         s.append(".b-api{background:rgba(204,120,92,.2);color:#cc785c;border:1px solid rgba(204,120,92,.35)}");
@@ -568,7 +694,7 @@ public class DashboardServer {
         s.append("button,a.btn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-size:.8rem;font-weight:600;text-decoration:none;display:inline-block;transition:opacity .15s,background .15s}");
         s.append("button:hover:not(:disabled),a.btn:hover{opacity:.88}");
         s.append(".btn-exec{background:#cc785c;color:#fff}.btn-exec:disabled{background:#3a3530;color:#5a524a;cursor:not-allowed;opacity:1}");
-        s.append(".btn-src{background:transparent;color:#cc785c;border:1px solid #cc785c}");
+        s.append(".btn-src{background:rgba(204,120,92,.12);color:#cc785c;border:1px solid rgba(204,120,92,.4)}");
         s.append(".btn-install{background:#1a6b4a;color:#a7f3d0;border:1px solid rgba(52,211,153,.3)}");
         s.append(".btn-remove{background:#6b2020;color:#fca5a5;border:1px solid rgba(248,113,113,.3)}");
         s.append(".btn-primary{background:#cc785c;color:#fff}.btn-secondary{background:#2c2825;color:#d6cfc8;border:1px solid #3a3530}");
@@ -606,14 +732,23 @@ public class DashboardServer {
         s.append(".filter-btn.active{background:rgba(204,120,92,.2);color:#cc785c;border-color:rgba(204,120,92,.4)}");
         s.append(".filter-btn:hover:not(.active){color:#d6cfc8;border-color:#5a524a}");
         s.append("::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#1a1816}::-webkit-scrollbar-thumb{background:#3a3530;border-radius:3px}");
+        s.append(".star-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;line-height:1;color:#5a524a;transition:color .15s}.star-btn.active{color:#fbbf24}.star-btn:hover{color:#fbbf24}");
+        s.append(".pop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}");
+        s.append(".pop-card{background:#211e1b;border:1px solid #3a3530;border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s}.pop-card:hover{border-color:#5a524a}");
+        s.append(".repo-img{width:100%;height:80px;object-fit:cover;border-radius:6px;background:#2c2825;margin-bottom:4px}");
+        s.append(".repo-desc{font-size:.8rem;color:#a8a29e;line-height:1.5;margin-top:2px}");
+        s.append(".card-actions{display:flex;align-items:center;gap:2px;flex-shrink:0;margin-left:auto}");
+        s.append(".card-details{position:absolute;inset:0;background:rgba(20,18,16,.93);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}.card-img-wrap:hover .card-details{opacity:1;pointer-events:auto}");
         s.append("</style></head><body>");
 
         s.append("<header><h1><span>Synap</span>Mc</h1>");
-        s.append("<span class=\"tcp-port-badge offline\" id=\"tcp-port-badge\" title=\"Click to start Tcp Port\">Click to Connect</span></header>");
+        s.append("<span class=\"tcp-port-badge offline\" id=\"tcp-port-badge\" title=\"Click to start TCP bridge server\">Start TCP</span></header>");
 
         s.append("<nav>");
         s.append("<button class=\"active\" onclick=\"showTab('browse',this)\">Browse</button>");
         s.append("<button onclick=\"showTab('repos',this)\">Repos</button>");
+        s.append("<button onclick=\"showTab('popular',this)\">Popular</button>");
+        s.append("<button onclick=\"showTab('favorites',this)\">Favorites</button>");
         s.append("<button onclick=\"showTab('manifest',this)\">Create Manifest</button>");
         s.append("</nav>");
 
@@ -706,6 +841,23 @@ public class DashboardServer {
         s.append("</div></div>");
         s.append("</div></div></div>");
 
+        // --- Popular tab ---
+        s.append("<div class=\"tab\" id=\"tab-popular\">");
+        s.append("<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:16px\">");
+        s.append("<h2 style=\"margin:0\">Popular Repos</h2>");
+        s.append("<button class=\"btn-secondary\" onclick=\"loadPopular()\">Refresh</button>");
+        s.append("</div>");
+        s.append("<div class=\"pop-grid\" id=\"pop-grid\"><p style=\"color:#78716c\">Loading...</p></div>");
+        s.append("</div>");
+
+        // --- Favorites tab ---
+        s.append("<div class=\"tab\" id=\"tab-favorites\">");
+        s.append("<div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:16px\">");
+        s.append("<h2 style=\"margin:0\">Favorites</h2>");
+        s.append("</div>");
+        s.append("<div class=\"grid\" id=\"fav-grid\"><p style=\"color:#78716c\">Loading...</p></div>");
+        s.append("</div>");
+
         s.append("<div id=\"toast\"></div>");
 
         s.append("<script>");
@@ -714,12 +866,9 @@ public class DashboardServer {
         s.append("try{const r=await fetch('/api/status');const d=await r.json();");
         s.append("tcpPortRunning=!!d.tcpPortRunning;tcpPortConnected=!!d.tcpPortConnected;");
         s.append("const b=document.getElementById('tcp-port-badge');");
-        s.append("if(tcpPortConnected){b.textContent='Connected';b.className='tcp-port-badge live';b.title='Tcp Port has connected clients';}");
-        s.append("else if(tcpPortRunning){b.textContent='Connect';b.className='tcp-port-badge live';b.title='Tcp Port running \u2013 waiting for clients';}");
-        s.append("else{b.textContent='Click to Connect';b.className='tcp-port-badge offline';b.title='Click to start Tcp Port';}");
-        s.append("document.querySelectorAll('.btn-exec').forEach(btn=>{");
-        s.append("btn.disabled=!tcpPortRunning;");
-        s.append("btn.title=tcpPortRunning?'':'Tcp Port offline';});");
+        s.append("if(tcpPortConnected){b.textContent='Client Connected';b.className='tcp-port-badge live';b.title='TCP bridge has connected external clients';}");
+        s.append("else if(tcpPortRunning){b.textContent='Waiting for Client';b.className='tcp-port-badge live';b.title='TCP bridge is running; connect with an external TCP client';}");
+        s.append("else{b.textContent='Start TCP';b.className='tcp-port-badge offline';b.title='Click to start TCP bridge server';}");
         s.append("}catch(e){}}");
         s.append("pollStatus();setInterval(pollStatus,3000);");
         s.append("document.addEventListener('DOMContentLoaded',function(){");
@@ -738,7 +887,10 @@ public class DashboardServer {
         s.append("document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));");
         s.append("document.getElementById('tab-'+id).classList.add('active');");
         s.append("if(btn)btn.classList.add('active');");
-        s.append("if(id==='repos')loadRepos();}");
+        s.append("if(id==='repos')loadRepos();");
+        s.append("if(id==='popular')loadPopular();");
+        s.append("if(id==='favorites')loadFavoritesTab();");
+        s.append("}");
         s.append("function toast(msg,ok){");
         s.append("const el=document.getElementById('toast');");
         s.append("el.textContent=msg;");
@@ -752,7 +904,10 @@ public class DashboardServer {
         s.append("async function loadScripts(){");
         s.append("const res=await fetch('/api/scripts');");
         s.append("allScripts=await res.json();");
-        s.append("filterScripts();}");
+        s.append("filterScripts();");
+        s.append("const favTab=document.getElementById('tab-favorites');");
+        s.append("if(favTab&&favTab.classList.contains('active'))loadFavoritesTab();");
+        s.append("}");
         s.append("function toggleFilterPanel(){");
         s.append("const p=document.getElementById('filter-panel');");
         s.append("const open=p.style.display==='none';");
@@ -790,7 +945,7 @@ public class DashboardServer {
         s.append("const q=document.getElementById('search').value.toLowerCase();");
         s.append("const sv=document.getElementById('server-search').value.toLowerCase();");
         s.append("const lv=document.getElementById('lang-search').value.toLowerCase();");
-        s.append("let list=allScripts;");
+        s.append("let list=allScripts.slice();");
         s.append("if(activeFilter!=='api')list=list.filter(s=>s.category!=='api');");
         s.append("if(activeFilter==='installed')list=list.filter(s=>s.installed);");
         s.append("else if(activeFilter==='notinstalled')list=list.filter(s=>!s.installed);");
@@ -807,9 +962,21 @@ public class DashboardServer {
         s.append("for(const sc of scripts){");
         s.append("const card=document.createElement('div');card.className='card';");
         s.append("let h='';");
-        s.append("if(sc.imageurl)h+=`<img class=\"card-img\" src=\"${esc(sc.imageurl)}\" alt=\"\" onerror=\"this.style.display='none'\">`; ");
-        s.append("h+=`<div class=\"card-title\">${esc(sc.name)}</div>`;");
-        s.append("h+=`<div class=\"card-meta\">by ${esc(sc.author||'Unknown')} &bull; ${esc(sc.repoName||'')}</div>`;");
+        s.append("h+=`<div class=\"card-img-wrap\">`;");
+        s.append("if(sc.imageurl)h+=`<img class=\"card-img\" src=\"${esc(sc.imageurl)}\" alt=\"\" onerror=\"this.parentElement.style.background='#2c2825'\">`;");
+        s.append("h+=`<div class=\"card-details\">`;");
+        s.append("h+=`<span style=\"font-size:.75rem;color:#a8a29e\"><b style=\"color:#f5f0eb\">Repo:</b> ${esc(sc.repoName||'')}</span>`;");
+        s.append("if(sc.repoSource)h+=`<a class=\"btn btn-secondary\" href=\"${esc(sc.repoSource)}\" target=\"_blank\" style=\"font-size:.75rem;padding:4px 10px;text-align:center\">Source</a>`;");
+        s.append("if(sc.installed)h+=`<button class=\"btn-secondary\" style=\"font-size:.75rem;padding:4px 10px;text-align:center\" onclick=\"revealScript(${esc(JSON.stringify(sc.name))})\">Show in Folder</button>`;");
+        s.append("h+=`</div>`;");
+        s.append("h+=`</div>`;");
+        s.append("const starCls=sc.favorited?'star-btn active':'star-btn';");
+        s.append("h+=`<div style=\"display:flex;align-items:flex-start;gap:6px\"><div class=\"card-title\" style=\"flex:1;min-width:0\">${esc(sc.name)}</div><div class=\"card-actions\">`;");
+        s.append("if(sc.repoDonateUrl)h+=`<a class=\"btn btn-secondary\" href=\"${esc(sc.repoDonateUrl)}\" target=\"_blank\" title=\"Donate\" style=\"padding:3px 7px;display:inline-flex;align-items:center\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 21.593c-.5-.396-7-5.621-7-10.593 0-3.866 3.134-7 7-7s7 3.134 7 7c0 4.972-6.5 10.197-7 10.593z\"/></svg></a>`;");
+        s.append("if(sc.repoDiscordUrl)h+=`<a class=\"btn btn-secondary\" href=\"${esc(sc.repoDiscordUrl)}\" target=\"_blank\" title=\"Discord\" style=\"padding:3px 7px;display:inline-flex;align-items:center;color:#7289da\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.082.11 18.105.12 18.128a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z\"/></svg></a>`;");
+        s.append("h+=`<button class=\"${starCls}\" title=\"${sc.favorited?'Remove from favorites':'Add to favorites'}\" onclick=\"toggleFavorite(${esc(JSON.stringify(sc.name))},this)\">\u2605</button>`;");
+        s.append("h+=`</div></div>`;");
+        s.append("h+=`<div class=\"card-meta\">by ${esc(sc.author||'Unknown')}</div>`;");
         s.append("h+='<div class=\"badges\">';");
         s.append("h+=`<span class=\"badge b-ver\">v${esc(sc.version||'?')}</span>`;");
         s.append("if(sc.lang&&!(sc.lang==='jar'&&sc.category==='jar')){const lc=sc.lang.toLowerCase();const lcls=lc==='lua'?'b-lua':lc==='js'?'b-js':lc==='py'?'b-py':'b-lang';h+=`<span class=\"badge ${lcls}\">.${esc(sc.lang)}</span>`;}");
@@ -819,16 +986,11 @@ public class DashboardServer {
         s.append("if(sc.hasRegister&&!sc.goesToMacros)h+='<span class=\"b-trigger\">&#9888; trigger</span>';");
         s.append("h+='</div>';");
         s.append("if(sc.description)h+=`<div class=\"card-desc\">${esc(sc.description)}</div>`;");
-        s.append("if(sc.category==='api'){const snip=`local s=synapmc:repo():getString(${JSON.stringify(sc.name)})`;h+=`<div style=\"display:flex;flex-direction:column;gap:4px\"><div class=\"snippet\">${esc(snip)}</div><button onclick=\"navigator.clipboard.writeText(${esc(JSON.stringify(snip))}).then(()=>toast('Copied!',true)).catch(()=>toast('Copy failed',false))\" style=\"align-self:flex-end;padding:2px 8px;font-size:.7rem;font-weight:600;border-radius:5px;border:1px solid #3a3530;background:#2c2825;color:#a8a29e;cursor:pointer\">Copy</button></div>`;}");
+        s.append("if(sc.category==='api'){const snip=`local s=synapmc:repo():getString(${JSON.stringify(sc.name)})`;h+=`<div class=\"snippet\" style=\"cursor:pointer\" title=\"Click to copy\" onclick=\"navigator.clipboard.writeText(${esc(JSON.stringify(snip))}).then(()=>toast('Copied!',true)).catch(()=>toast('Copy failed',false))\">${esc(snip)}</div>`;}");
         s.append("h+='<div class=\"btns\">';");
-        s.append("if(sc.isExecuteReady){const dis=tcpPortRunning?'':' disabled title=\"Tcp Port offline\"';");
-        s.append("h+=`<button class=\"btn-exec\"${dis} onclick=\"execScript(${esc(JSON.stringify(sc.name))})\">Execute</button>`;}");
+        s.append("if(sc.isExecuteReady){h+=`<button class=\"btn-exec\" onclick=\"execScript(${esc(JSON.stringify(sc.name))})\">Execute</button>`;}");
         s.append("if(!sc.installed)h+=`<button class=\"btn-install\" onclick=\"installScript(${esc(JSON.stringify(sc.name))})\">Install</button>`;");
-        s.append("else{h+=`<button class=\"btn-remove\" onclick=\"removeScript(${esc(JSON.stringify(sc.name))})\">Uninstall</button>`;");
-        s.append("h+=`<button class=\"btn-secondary\" onclick=\"revealScript(${esc(JSON.stringify(sc.name))})\">Show in Folder</button>`;}");
-        s.append("if(sc.repoSource)h+=`<a class=\"btn btn-src\" href=\"${esc(sc.repoSource)}\" target=\"_blank\">Source</a>`;");
-        s.append("if(sc.repoDiscordUrl)h+=`<a class=\"btn btn-src\" href=\"${esc(sc.repoDiscordUrl)}\" target=\"_blank\" title=\"Discord\" style=\"color:#7289da\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"display:inline;vertical-align:middle\"><path d=\"M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.082.11 18.105.12 18.128a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z\"/></svg></a>`;");
-        s.append("if(sc.repoDonateUrl)h+=`<a class=\"btn btn-src\" href=\"${esc(sc.repoDonateUrl)}\" target=\"_blank\" title=\"Donate\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"display:inline;vertical-align:middle\"><path d=\"M12 21.593c-.5-.396-7-5.621-7-10.593 0-3.866 3.134-7 7-7s7 3.134 7 7c0 4.972-6.5 10.197-7 10.593z\"/></svg></a>`;");
+        s.append("else h+=`<button class=\"btn-remove\" onclick=\"removeScript(${esc(JSON.stringify(sc.name))})\">Uninstall</button>`;");
         s.append("h+='</div>';");
         s.append("card.innerHTML=h;grid.appendChild(card);}");
         s.append("}");
@@ -852,11 +1014,11 @@ public class DashboardServer {
         s.append("const repos=await res.json();");
         s.append("const keys=Object.keys(repos);");
         s.append("if(!keys.length){list.innerHTML='<p style=\"color:#78716c\">No repos configured.</p>';return;}");
-        s.append("const discordByRepo={},donateByRepo={};");
-        s.append("for(const s of allScripts){if(s.repoName&&s.repoDiscordUrl)discordByRepo[s.repoName]=s.repoDiscordUrl;if(s.repoName&&s.repoDonateUrl)donateByRepo[s.repoName]=s.repoDonateUrl;}");
+        s.append("const discordByRepo={},donateByRepo={},imgByRepo={},descByRepo={};");
+        s.append("for(const s of allScripts){if(s.repoName&&s.repoDiscordUrl)discordByRepo[s.repoName]=s.repoDiscordUrl;if(s.repoName&&s.repoDonateUrl)donateByRepo[s.repoName]=s.repoDonateUrl;if(s.repoName&&s.repoImageUrl)imgByRepo[s.repoName]=s.repoImageUrl;if(s.repoName&&s.repoDescription)descByRepo[s.repoName]=s.repoDescription;}");
         s.append("const discSvg=`<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"display:inline;vertical-align:middle\"><path d=\"M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.082.11 18.105.12 18.128a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z\"/></svg>`;");
         s.append("const donSvg=`<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"display:inline;vertical-align:middle\"><path d=\"M12 21.593c-.5-.396-7-5.621-7-10.593 0-3.866 3.134-7 7-7s7 3.134 7 7c0 4.972-6.5 10.197-7 10.593z\"/></svg>`;");
-        s.append("list.innerHTML=keys.map(k=>{const disc=discordByRepo[k]?`<a class=\"btn btn-src\" href=\"${esc(discordByRepo[k])}\" target=\"_blank\" style=\"display:inline-flex;align-items:center;gap:4px;color:#7289da\">${discSvg} Discord</a>`:'';const don=donateByRepo[k]?`<a class=\"btn btn-src\" href=\"${esc(donateByRepo[k])}\" target=\"_blank\" style=\"display:inline-flex;align-items:center;gap:4px\">${donSvg} Donate</a>`:'';return`<div class=\"repo-row\"><span class=\"repo-name\">${esc(k)}</span><span class=\"repo-url\">${esc(repos[k])}</span>${disc}${don}<button class=\"btn-remove\" onclick=\"removeRepo(${esc(JSON.stringify(k))})\">Remove</button></div>`;}).join('');");
+        s.append("list.innerHTML=keys.map(k=>{const disc=discordByRepo[k]?`<a class=\"btn btn-secondary\" href=\"${esc(discordByRepo[k])}\" target=\"_blank\" style=\"display:inline-flex;align-items:center;gap:4px;color:#7289da\">${discSvg} Discord</a>`:'';const don=donateByRepo[k]?`<a class=\"btn btn-secondary\" href=\"${esc(donateByRepo[k])}\" target=\"_blank\" style=\"display:inline-flex;align-items:center;gap:4px\">${donSvg} Donate</a>`:'';const img=imgByRepo[k]?`<img class=\"repo-img\" src=\"${esc(imgByRepo[k])}\" alt=\"\" onerror=\"this.style.display='none'\">`:'';const desc=descByRepo[k]?`<div class=\"repo-desc\">${esc(descByRepo[k])}</div>`:'';return`<div class=\"repo-row\" style=\"flex-direction:column;align-items:flex-start;gap:8px\">${img}<div style=\"display:flex;align-items:center;gap:12px;width:100%\"><span class=\"repo-name\">${esc(k)}</span><span class=\"repo-url\">${esc(repos[k])}</span>${disc}${don}<button class=\"btn-remove\" onclick=\"removeRepo(${esc(JSON.stringify(k))})\">Remove</button></div>${desc}</div>`;}).join('');");
         s.append("}catch(e){list.innerHTML='<p style=\"color:#f87171\">Failed to load repos: '+esc(e.message)+'</p>';}}");
         s.append("async function removeRepo(name){");
         s.append("const res=await fetch('/api/repos/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});");
@@ -911,7 +1073,6 @@ public class DashboardServer {
         s.append("<div class=\"se-body\" id=\"${id}-body\">");
         s.append("<div class=\"field-row\"><label>Name</label><input type=\"text\" class=\"se-name\" oninput=\"updatePreview()\"></div>");
         s.append("<div class=\"field-row\"><label>Author</label><input type=\"text\" class=\"se-author\" oninput=\"updatePreview()\"></div>");
-        s.append("<div class=\"field-row\"><label>Source URL</label><input type=\"url\" class=\"se-source\" oninput=\"updatePreview()\"></div>");
         s.append("<div class=\"field-row\"><label>Destination</label><input type=\"text\" class=\"se-dest\" oninput=\"updatePreview()\"><span class=\"se-dest-hint\" style=\"font-size:.75rem;color:#78716c;margin-left:6px\"></span></div>");
         s.append("<div class=\"field-row\"><label>Version</label><input type=\"text\" class=\"se-ver\" value=\"1.0.0\" oninput=\"updatePreview()\"></div>");
         s.append("<div class=\"field-row\"><label>Description</label><input type=\"text\" class=\"se-desc\" oninput=\"updatePreview()\"></div>");
@@ -919,6 +1080,7 @@ public class DashboardServer {
         s.append("<div class=\"field-row\"><label>Category</label><select class=\"se-category\" onchange=\"onCategoryChange(this);updatePreview()\"><option value=\"macro\">macro</option><option value=\"api\">api</option><option value=\"exe\">exe</option><option value=\"jar\">jar</option></select></div>");
         s.append("<div class=\"field-row\"><label>JsMacros Version</label><select class=\"se-jsmver\" onchange=\"updatePreview()\"><option value=\"\">All</option><option value=\"1.9.2\">1.9.2</option><option value=\"2.0.0\">2.0.0</option><option value=\"community\">Community Edition</option></select></div>");
         s.append("<div class=\"field-row\"><label>Server (optional, leave blank for all)</label><input type=\"text\" class=\"se-server\" placeholder=\"e.g. hypixel.net\" oninput=\"updatePreview()\"></div>");
+        s.append("<div class=\"se-source-row\"><div class=\"field-row\"><label class=\"se-source-label\">Source URL</label><input type=\"url\" class=\"se-source\" oninput=\"updatePreview()\"></div></div>");
         s.append("<div class=\"se-exec-row\"><div class=\"check-row\"><input type=\"checkbox\" class=\"se-exec\" onchange=\"updatePreview()\"><label>isExecuteReady</label></div></div>");
         s.append("<button type=\"button\" class=\"btn-secondary\" style=\"font-size:.75rem;margin-top:4px\" onclick=\"toggleEntryAdv(this)\">Advanced \u25BC</button>");
         s.append("<div class=\"se-adv\" style=\"display:none\">");
@@ -1055,6 +1217,67 @@ public class DashboardServer {
         s.append("populateManifest(m);");
         s.append("toast('Verified!',true);");
         s.append("}catch(e){toast('Invalid JSON: '+e.message,false);}}");
+        // --- Favorites ---
+        s.append("async function toggleFavorite(name,btn){");
+        s.append("const isFav=btn.classList.contains('active');");
+        s.append("const url=isFav?'/api/favorites/remove':'/api/favorites/add';");
+        s.append("try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});");
+        s.append("btn.classList.toggle('active');");
+        s.append("btn.title=btn.classList.contains('active')?'Remove from favorites':'Add to favorites';");
+        s.append("const sc=allScripts.find(s=>s.name===name);if(sc)sc.favorited=!isFav;");
+        s.append("}catch(e){toast('Favorite failed: '+e.message,false);}}");
+
+        s.append("async function loadFavoritesTab(){");
+        s.append("const grid=document.getElementById('fav-grid');");
+        s.append("const favs=allScripts.filter(s=>s.favorited);");
+        s.append("if(!favs.length){grid.innerHTML='<p style=\"color:#78716c\">No favorites yet. Star scripts in Browse to add them.</p>';return;}");
+        s.append("renderScriptsTo(favs,grid);}");
+
+        // --- Popular ---
+        s.append("async function loadPopular(){");
+        s.append("const grid=document.getElementById('pop-grid');");
+        s.append("grid.innerHTML='<p style=\"color:#78716c\">Loading...</p>';");
+        s.append("try{");
+        s.append("const res=await fetch('/api/popular');");
+        s.append("const data=await res.json();");
+        s.append("if(data.error){grid.innerHTML=`<p style=\"color:#f87171\">${esc(data.error)}</p>`;return;}");
+        s.append("if(!data.length){grid.innerHTML='<p style=\"color:#78716c\">No popular repos found.</p>';return;}");
+        s.append("grid.innerHTML=data.map(r=>{");
+        s.append("const addedLabel=r.added?'<span class=\"badge b-inst\">Added</span>':'';");
+        s.append("const addBtn=r.added?'':`<button class=\"btn-primary\" onclick=\"addRepoByUrl(${esc(JSON.stringify(r.url))},this)\">Add</button>`;");
+        s.append("return`<div class=\"pop-card\"><div class=\"card-title\">${esc(r.name)}</div><div class=\"card-meta\" style=\"word-break:break-all\">${esc(r.url)}</div><div class=\"btns\">${addedLabel}${addBtn}</div></div>`;");
+        s.append("}).join('');}");
+        s.append("catch(e){grid.innerHTML=`<p style=\"color:#f87171\">${esc(e.message)}</p>`;}}");
+
+        s.append("async function addRepoByUrl(url,btn){");
+        s.append("btn.disabled=true;btn.textContent='Adding...';");
+        s.append("try{const r=await fetch('/api/repos/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});");
+        s.append("const d=await r.json();");
+        s.append("if(d.ok){toast('Repo added.',true);btn.replaceWith(document.createTextNode(''));loadScripts();loadPopular();}");
+        s.append("else{toast('Error: '+(d.error||'?'),false);btn.disabled=false;btn.textContent='Add';}}");
+        s.append("catch(e){toast(e.message,false);btn.disabled=false;btn.textContent='Add';}}");
+
+        // --- Shared render helper ---
+        s.append("function renderScriptsTo(scripts,container){");
+        s.append("container.innerHTML='';");
+        s.append("for(const sc of scripts){");
+        s.append("const card=document.createElement('div');card.className='card';");
+        s.append("let h='';");
+        s.append("if(sc.imageurl)h+=`<img class=\"card-img\" src=\"${esc(sc.imageurl)}\" alt=\"\" onerror=\"this.style.display='none'\">`;");
+        s.append("h+=`<div class=\"card-title\">${esc(sc.name)}</div>`;");
+        s.append("h+=`<div class=\"card-meta\">by ${esc(sc.author||'Unknown')} &bull; ${esc(sc.repoName||'')}</div>`;");
+        s.append("h+='<div class=\"badges\">';");
+        s.append("h+=`<span class=\"badge b-ver\">v${esc(sc.version||'?')}</span>`;");
+        s.append("if(sc.installed)h+='<span class=\"badge b-inst\">Installed</span>';");
+        s.append("h+='</div>';");
+        s.append("if(sc.description)h+=`<div class=\"card-desc\">${esc(sc.description)}</div>`;");
+        s.append("h+='<div class=\"btns\">';");
+        s.append("if(!sc.installed)h+=`<button class=\"btn-install\" onclick=\"installScript(${esc(JSON.stringify(sc.name))})\">Install</button>`;");
+        s.append("else{h+=`<button class=\"btn-remove\" onclick=\"removeScript(${esc(JSON.stringify(sc.name))})\">Uninstall</button>`;}");
+        s.append("h+='</div>';");
+        s.append("card.innerHTML=h;container.appendChild(card);}");
+        s.append("}");
+
         s.append("loadScripts();");
         s.append("</script></body></html>");
         return s.toString();
@@ -1081,6 +1304,15 @@ public class DashboardServer {
         int n;
         while ((n = is.read(chunk)) != -1) buf.write(chunk, 0, n);
         return buf.toByteArray();
+    }
+
+    private String detectLang(String pathOrUrl) {
+        if (pathOrUrl == null) return null;
+        String clean = pathOrUrl.toLowerCase().replaceAll("[?#].*", "");
+        if (clean.endsWith(".lua")) return "lua";
+        if (clean.endsWith(".js")) return "js";
+        if (clean.endsWith(".py")) return "py";
+        return null;
     }
 
     private String escapeJson(String s) {
