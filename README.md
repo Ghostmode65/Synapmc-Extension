@@ -6,32 +6,31 @@ Synapmc a extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 |---|---|------------|
 | ☑️ | Remote Control | Access JsMacros from outside your game or your computer|
 | ☑️ | Package Manager | Easily share and access scripts from other players |
-| ☑️ | Unified Folders | Create a shared folders, all your scripts will always be accessible on any luncher that works with jsmacros: feather, prism, vanilla, and more. |
-| ☑️ | Mutli Language Support | Should be compatible with all current language extentions from wagyourtail |
+| ☑️ | Unified Folders | Create shared folders, all your scripts will always be accessible on any luncher that works with jsmacros: feather, prism, vanilla, and more. |
+| ☑️ | Mutli Language Support | Compatible with all current language extentions, plus comes bundled with Lua, Python and Ruby |
+
 
 |  | Added |
 |---|---|
 | ✅ | JsMacros Community Edition Support `Minecraft versions 1.21.4 - 1.21.11`|
-
-|  | Planned |
-|---|---|
-| ❌ | Linux Support | 
-| ❌ | Dependency Support |
-| ❌ | Easy Updates / Auto Updates | 
+| ✅ | JsMacros Reloaded Support `Minecraft versions 26.1 - 26.2`|
+| ✅ | Drag and drop to import scripts |
+| ✅ | Export/Sync registered scripts |
+| ✅ | Linux Support |
 
 ## Package Manager / Repositories
 
 Easily browse a selection of scripts, extensions, programs, and mods. <br>
 Filter scripts by server, version, and language. <br>
-Save your favorite scripts to always find them quickly. <br>
 
 Most creators don't use Synapmc, so they may not have a manifest. Just add their GitHub repo and Synapmc will attempt to auto generate one. <br>
 Creators can also include a Discord and donation link on their repos. <br>
 
-To access the Repository Dashboard (Package Manager) do `Jsmacros Settings → synapmc → Repos → Open Repo Browser` or in a script execute `synapmc.repo().openBrowser()`
+To access the Repository Dashboard (Package Manager) open `Jsmacros → Click Repository` in the bottom left.
 
 **⚠️This is still in development**<br> 
 * Functions are subject to change
+* Any script created by other users can be malicious, be careful what you are running.
 
 **Check Wiki for more info** <br>
 [Getting Started](../../wiki/Getting-Started) <br>

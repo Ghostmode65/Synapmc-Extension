@@ -1,0 +1,22 @@
+{
+  "dependencies": [
+    "META-INF/jsmacrosdeps/python-language-24.0.1.jar",
+    "META-INF/jsmacrosdeps/python-resources-24.0.1.jar",
+    "META-INF/jsmacrosdeps/llvm-native-community-24.0.1.pom",
+    "META-INF/jsmacrosdeps/llvm-language-native-24.0.1.jar",
+    "META-INF/jsmacrosdeps/llvm-language-nfi-24.0.1.jar",
+    "META-INF/jsmacrosdeps/llvm-language-24.0.1.jar",
+    "META-INF/jsmacrosdeps/llvm-language-native-resources-24.0.1.jar",
+    "META-INF/jsmacrosdeps/llvm-api-24.0.1.jar",
+    "META-INF/jsmacrosdeps/truffle-runtime-24.0.1.jar",
+    "META-INF/jsmacrosdeps/truffle-nfi-libffi-24.0.1.jar",
+    "META-INF/jsmacrosdeps/truffle-nfi-24.0.1.jar",
+    "META-INF/jsmacrosdeps/xz-24.0.1.jar",
+    "META-INF/jsmacrosdeps/bcpkix-jdk18on-1.76.jar",
+    "META-INF/jsmacrosdeps/bcutil-jdk18on-1.76.jar",
+    "META-INF/jsmacrosdeps/bcprov-jdk18on-1.76.jar",
+    "META-INF/jsmacrosdeps/jniutils-24.0.1.jar",
+    "META-INF/jsmacrosdeps/truffle-compiler-24.0.1.jar",
+    "META-INF/jsmacrosdeps/antlr4-24.0.1.jar"
+  ]
+}

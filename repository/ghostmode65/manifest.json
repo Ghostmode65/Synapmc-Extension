@@ -1,0 +1,39 @@
+{
+  "name": "LuaJ",
+  "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/sub/lua/library.json",
+  "author": "Ghostmode65",
+  "scripts": [
+    {
+      "name": "GradientText",
+      "author": "Ghostmode65",
+      "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/lua/Ghostmode65/library/GradientText.lua",
+      "version": "1.0.0",
+      "description": "",
+      "category": "api"
+    },
+    {
+      "name": "Lua Serpent",
+      "author": "Ghostmode65",
+      "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/lua/Ghostmode65/library/serpent.lua",
+      "version": "1.0.0",
+      "description": "Convert tables to strings and export",
+      "category": "api"
+    },
+    {
+      "name": "Lua Json",
+      "author": "Ghostmode65",
+      "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/lua/Ghostmode65/library/json.lua",
+      "version": "1.0.0",
+      "description": "Encoding and decoding json",
+      "category": "api"
+    },
+    {
+      "name": "Roman Digits",
+      "author": "Ghostmode65",
+      "source": "https://raw.githubusercontent.com/Ghostmode65/Synapcmc-Extension/refs/heads/main/repository/lua/Ghostmode65/library/roman.lua",
+      "version": "1.0.0",
+      "description": "Number conversion XII -> 12 / 12 -> XII",
+      "category": "api"
+    }
+  ]
+}
