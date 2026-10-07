@@ -166,7 +166,7 @@ public class RepoManager {
 
     public void refreshRepos() {
         manifests.clear();
-        for (String url : SynapMcShared.core.getConfiguredRepos().values()) {
+        for (String url : new ArrayList<>(SynapMcShared.core.getConfiguredRepos().values())) {
             try {
                 fetchAndCacheManifest(url);
             } catch (Exception e) {
@@ -291,7 +291,7 @@ public class RepoManager {
                 row.put("version", script.version);
                 row.put("repoName", manifest.name);
                 row.put("category", script.category);
-                row.put("isExecuteReady", script.isExecuteReady);
+                row.put("isExecuteReady", script.canExecute());
                 if (!isCompatibleWithCurrentJsMacros(script)) continue;
                 InstalledInfo info = getInstalledInfo(script.name);
                 row.put("installed", info != null);
@@ -425,7 +425,7 @@ public class RepoManager {
                 row.put("version", script.version);
                 row.put("repoName", manifest.name);
                 row.put("category", script.category);
-                row.put("isExecuteReady", script.isExecuteReady);
+                row.put("isExecuteReady", script.canExecute());
                 if (!isCompatibleWithCurrentJsMacros(script)) continue;
                 InstalledInfo info = getInstalledInfo(script.name);
                 row.put("installed", info != null);
@@ -653,6 +653,20 @@ public class RepoManager {
         manifest.fetchedAt = cacheFile.lastModified();
         manifests.put(manifest.name.toLowerCase(), manifest);
         lastFetchedName = manifest.name.toLowerCase();
+        if (RepositoryDefaults.DEFAULT_MANIFEST.equals(url)) {
+            Map<String, String> configured = SynapMcShared.core.getConfiguredRepos();
+            boolean renamed = false;
+            for (Map.Entry<String, String> repo : new LinkedHashMap<>(configured).entrySet()) {
+                if (url.equals(repo.getValue()) && !manifest.name.equals(repo.getKey())) {
+                    configured.remove(repo.getKey());
+                    renamed = true;
+                }
+            }
+            if (renamed) {
+                configured.put(manifest.name, url);
+                SynapMcShared.core.saveConfig();
+            }
+        }
     }
 
     private RepoManifest tryGenerateGithubManifest(String url) {
@@ -693,7 +707,6 @@ public class RepoManager {
                 entry.description = "Auto-generated macro from " + path;
                 entry.imageurl = "https://github.com/" + source.owner + ".png";
                 entry.category = "macro";
-                entry.isExecuteReady = true;
                 manifest.scripts.add(entry);
             }
             if (manifest.scripts.isEmpty()) return null;

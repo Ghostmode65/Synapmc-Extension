@@ -161,7 +161,7 @@ public class DashboardServer {
                 row.put("imageWidth", entry.imageWidth);
                 row.put("imageHeight", entry.imageHeight);
                 row.put("category", "jar".equalsIgnoreCase(entry.category) ? "extension" : entry.category);
-                row.put("isExecuteReady", entry.isExecuteReady);
+                row.put("isExecuteReady", entry.canExecute());
                 row.put("jsmacrosVersion", entry.jsmacrosVersion);
                 row.put("server", entry.server);
                 row.put("repoName", manifest.name);
@@ -488,9 +488,9 @@ public class DashboardServer {
                     "{\"error\":\"Script not found: " + escapeJson(scriptName) + "\"}");
             return;
         }
-        if (!entry.isExecuteReady) {
+        if (!entry.canExecute()) {
             sendResponse(exchange, 400, "application/json",
-                    "{\"error\":\"Script is not marked execute-ready: " + escapeJson(scriptName) + "\"}");
+                    "{\"error\":\"Only macros can be executed: " + escapeJson(scriptName) + "\"}");
             return;
         }
         String content = repoManager.getString(scriptName);
@@ -528,21 +528,25 @@ public class DashboardServer {
         Map<String, String> configuredRepos = SynapMcShared.core != null
                 ? SynapMcShared.core.getConfiguredRepos()
                 : new LinkedHashMap<String, String>();
+        java.util.Set<String> links = new java.util.LinkedHashSet<>(PopularRepositories.load());
         for (com.synapmc.model.RepoManifest manifest : RepoManager.getInstance().getManifests().values()) {
             if (manifest.popularRepos == null) continue;
             for (String url : manifest.popularRepos) {
-                Map<String, Object> entry = new LinkedHashMap<String, Object>();
-                entry.put("url", url);
-
-                String name = url.replaceAll("[?#].*", "");
-                int sl = name.lastIndexOf('/');
-                if (sl >= 0) name = name.substring(0, sl);
-                sl = name.lastIndexOf('/');
-                if (sl >= 0) name = name.substring(sl + 1);
-                entry.put("name", name.isEmpty() ? url : name);
-                entry.put("added", configuredRepos.containsValue(url));
-                result.add(entry);
+                if (url != null && !url.trim().isEmpty()) links.add(url.trim());
             }
+        }
+        for (String url : links) {
+            Map<String, Object> entry = new LinkedHashMap<String, Object>();
+            entry.put("url", url);
+
+            String name = url.replaceAll("[?#].*", "");
+            int sl = name.lastIndexOf('/');
+            if (sl >= 0) name = name.substring(0, sl);
+            sl = name.lastIndexOf('/');
+            if (sl >= 0) name = name.substring(sl + 1);
+            entry.put("name", name.isEmpty() ? url : name);
+            entry.put("added", configuredRepos.containsValue(url));
+            result.add(entry);
         }
         sendResponse(exchange, 200, "application/json; charset=utf-8", GSON.toJson(result));
     }

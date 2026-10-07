@@ -20,7 +20,7 @@ public class ScriptEntry {
 
     public String category;
 
-    public boolean isExecuteReady;
+    public boolean canExecute() { return "macro".equalsIgnoreCase(category); }
     public String server;
 
     public String jsmacrosVersion;

@@ -29,6 +29,7 @@ public final class SynapMcConfig {
     public Map<String, String> unifyFolders = new LinkedHashMap<String, String>();
     public Map<String, String> tags = new LinkedHashMap<String, String>();
     public Map<String, String> repos = new LinkedHashMap<String, String>();
+    public boolean defaultReposInitialized = false;
 
     public SynapMcConfig() {
         unifyFolders.put("global", "scripts/macros");
@@ -109,6 +110,15 @@ public final class SynapMcConfig {
         unifyFolders.putIfAbsent("global", "scripts/macros");
         if (tags == null) tags = new LinkedHashMap<String, String>();
         if (repos == null) repos = new LinkedHashMap<String, String>();
+        // Seed existing installations once, while preserving later removals.
+        if (!defaultReposInitialized) {
+            if (!repos.containsValue(com.synapmc.repo.RepositoryDefaults.DEFAULT_MANIFEST)) {
+                String name = com.synapmc.repo.RepositoryDefaults.DEFAULT_NAME;
+                while (repos.containsKey(name)) name += " (default)";
+                repos.put(name, com.synapmc.repo.RepositoryDefaults.DEFAULT_MANIFEST);
+            }
+            defaultReposInitialized = true;
+        }
     }
 
     private static Path path(File roamingDir) {
