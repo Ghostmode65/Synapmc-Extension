@@ -23,8 +23,38 @@ public final class FDownload {
         this.overwrite = overwrite;
     }
 
-    public String file() { return save(new File(SynapMcShared.roamingDir, "downloads"), null); }
-    public String file(String filepath) { return save(new File(SynapMcShared.roamingDir, "downloads"), filepath); }
+    public String mod() { return save(new File(SynapMcShared.core.getMinecraftDir(), "mods"), null); }
+    public String extension() { return save(SynapMcShared.core.getExtensionFolder(), null); }
+    public String macro() { return macro(null); }
+    public String macro(String filepath) { return save(roaming("scripts/macros"), filepath); }
+    public String macro(String filepath, String name) {
+        return macro(destination(filepath, name));
+    }
+    public String script() { return script(null); }
+    public String script(String filepath) { return save(roaming("scripts"), filepath); }
+    public String script(String folder, String name) {
+        return script(destination(folder, name));
+    }
+    public String image() { return image(null); }
+    public String image(String filepath) { return save(roaming("assets/images"), filepath); }
+    public String sound() { return sound(null); }
+    public String sound(String filepath) { return save(roaming("assets/sounds"), filepath); }
+    public String exe() { return save(executableDirectory(false), null); }
+    public String appimage() { return save(executableDirectory(true), null); }
+
+    private String destination(String folder, String name) {
+        String selectedName = name == null || name.isEmpty() ? filename() : name;
+        return folder == null || folder.isEmpty() ? selectedName : new File(folder, selectedName).getPath();
+    }
+
+    private static File roaming(String directory) { return new File(SynapMcShared.roamingDir, directory); }
+
+    private static File executableDirectory(boolean appimage) {
+        String configured = appimage ? SynapMcShared.config.appimageDownloadDir : SynapMcShared.config.exeDownloadDir;
+        if (configured == null || configured.trim().isEmpty()) return new File(System.getProperty("user.home"), "Desktop");
+        File folder = new File(configured.trim());
+        return folder.isAbsolute() ? folder : new File(System.getProperty("user.home"), configured.trim());
+    }
 
     private String save(File directory, String filepath) {
         try {

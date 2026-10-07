@@ -1,4 +1,3 @@
-//Pointless, remove
 package com.jsmacrosce.jsmacros.synapmc;
 
 import net.minecraft.class_332;

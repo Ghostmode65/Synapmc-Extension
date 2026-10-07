@@ -30,14 +30,10 @@ To access the Repository Dashboard (Package Manager) open `Jsmacros → Click Re
 
 **⚠️This is still in development**<br> 
 * Functions are subject to change
-* Any script created by other users can be malicious, be careful what you are running.
+
 
 **Check Wiki for more info** <br>
 [Getting Started](../../wiki/Getting-Started) <br>
 [Creating Repositories](../../wiki/Creating-Repositories) <br>
 [Connecting-To-Remote](../../wiki/Connecting-To-Remote-(webhook)) <br>
-
-
-
-
 

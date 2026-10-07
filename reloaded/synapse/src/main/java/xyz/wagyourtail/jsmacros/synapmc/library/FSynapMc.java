@@ -6,53 +6,33 @@ import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import com.synapmc.library.FClient;
 import com.synapmc.library.FDownload;
 import com.synapmc.library.FEditor;
-import com.synapmc.library.FExtra;
 import com.synapmc.library.FPort;
 import com.synapmc.library.FSynapse;
 import com.synapmc.library.FTag;
-import com.synapmc.library.FTexture;
-import com.synapmc.ScoreboardSpoof;
 
 import java.io.File;
 import java.util.Map;
-import java.util.List;
-import com.synapmc.library.RepoHelper;
-import com.synapmc.library.RepoScriptHelper;
 
 @Library("synapmc")
-public class FSynapMc extends PerExecLibrary {
+public final class FSynapMc extends PerExecLibrary {
     private final FSynapse service;
+    private final FEditor editor = new FEditor();
 
     public FSynapMc(BaseScriptContext<?> ctx) {
         super(ctx);
         service = new FSynapse(ctx.runner, ctx);
     }
 
-    @Library("synapse")
-    public static final class Synapse extends FSynapMc {
-        public Synapse(BaseScriptContext<?> ctx) { super(ctx); }
-    }
-
-    public RepoHelper getRepo(String name) { return service.getRepo(name); }
-    public RepoScriptHelper getScripts() { return service.getScripts(); }
-    public List<String> list() { return service.list(); }
-    public List<String> list(boolean installed) { return service.list(installed); }
-    public void addRepo(List<String> urls, boolean update) { service.addRepo(urls, update); }
-    public void addRepo(List<String> urls) { service.addRepo(urls); }
-    public void addRepo(String url, boolean update) { service.addRepo(url, update); }
-    public void addRepo(String url) { service.addRepo(url); }
-    public void removeRepo(List<String> urls) { service.removeRepo(urls); }
-    public void removeRepo(String nameOrUrl) { service.removeRepo(nameOrUrl); }
+    public boolean openEditor(String file) { return editor.open(file); }
+    public boolean openEditor(String file, int line) { return editor.open(file, line); }
+    public boolean openEditor(File file) { return editor.open(file); }
+    public boolean openEditor(File file, int line) { return editor.open(file, line); }
 
     public String roaming() { return service.roaming(); }
     public FPort port() { return new FPort(); }
     public FPort port(String nameOrAddress) { return new FPort(nameOrAddress); }
-    public String download(String url) { return download(url, null, true); }
-    public String download(String url, boolean overwrite) { return download(url, null, overwrite); }
-    public String download(String url, String filepath) { return download(url, filepath, true); }
-    public String download(String url, String filepath, boolean overwrite) {
-        return new FDownload(url, overwrite).file(filepath);
-    }
+    public FDownload download(String url) { return download(url, true); }
+    public FDownload download(String url, boolean overwrite) { return new FDownload(url, overwrite); }
     public Map<String, Object> getConfig() { return service.getConfig(); }
     public boolean saveConfig(String name, Object value) { return service.saveConfig(name, value); }
     public Map<String, Object> getJsConfig() { return service.getJsConfig(); }
@@ -81,23 +61,5 @@ public class FSynapMc extends PerExecLibrary {
         public String toString(String taggedPath) { return tag.toString(taggedPath); }
     }
 
-    @Library("SEditor")
-    public static final class Editor extends PerExecLibrary {
-        private final FEditor editor = new FEditor();
-        public Editor(BaseScriptContext<?> ctx) { super(ctx); }
-        public boolean open(String file) { return editor.open(file); }
-        public boolean open(String file, int line) { return editor.open(file, line); }
-        public boolean open(File file) { return editor.open(file); }
-        public boolean open(File file, int line) { return editor.open(file, line); }
-    }
 
-    @Library("SExtra")
-    public static final class Extra extends PerExecLibrary {
-        private final FExtra extra = new FExtra();
-        public final FTexture texture = extra.texture;
-        public Extra(BaseScriptContext<?> ctx) { super(ctx); }
-        public ScoreboardSpoof.Handle scoreboard(int line, String text) {
-            return extra.scoreboard(line, text);
-        }
-    }
 }

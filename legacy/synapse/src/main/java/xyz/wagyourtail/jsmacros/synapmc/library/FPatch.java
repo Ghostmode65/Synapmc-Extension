@@ -1,6 +1,10 @@
 package xyz.wagyourtail.jsmacros.synapmc.library;
 
 import com.synapmc.ScoreboardSpoof;
+import com.synapmc.SynapMcShared;
+import xyz.wagyourtail.jsmacros.client.api.helpers.TextHelper;
+
+import java.lang.reflect.Constructor;
 
 public final class FPatch {
     public ScoreboardPatch scoreboard(int line) {
@@ -13,7 +17,22 @@ public final class FPatch {
 
         private ScoreboardPatch(int line) { this.line = line; }
 
-        public String getText() { return ScoreboardSpoof.readText(line); }
+        public TextHelper getText() {
+            Object text = ScoreboardSpoof.readText(line);
+            if (text == null) return null;
+            // Select the native-text constructor without a dependency on Minecraft mappings.
+            for (Constructor<?> constructor : TextHelper.class.getConstructors()) {
+                if (constructor.getParameterCount() != 1 || !constructor.getParameterTypes()[0].isInstance(text)) continue;
+                try {
+                    return (TextHelper) constructor.newInstance(text);
+                } catch (ReflectiveOperationException error) {
+                    SynapMcShared.error("[SynapMc] Could not wrap scoreboard text: " + error);
+                    return null;
+                }
+            }
+            SynapMcShared.error("[SynapMc] No TextHelper constructor accepts the scoreboard text");
+            return null;
+        }
 
         public boolean setText(String text) {
             if (text == null) return false;

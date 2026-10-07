@@ -52,7 +52,7 @@ public final class ScoreboardSpoof {
         });
     }
 
-    public static String readText(int line) {
+    public static Object readText(int line) {
         if (line < -1) return null;
         return onClient(() -> {
             Object client = client();
@@ -64,10 +64,7 @@ public final class ScoreboardSpoof {
             String owner = line == -1 ? null : lineOwner(board, objective, line);
             if (line >= 0 && owner == null) return null;
             Object access = owner == null ? objective : scoreAccess(board, objective, owner);
-            Object text = currentValue(access, owner);
-            if (text == null) return null;
-            Object value = optionalCall(text, new String[] {"getString", "asString", "method_10851"});
-            return value == null ? text.toString() : value.toString();
+            return currentValue(access, owner);
         });
     }
 

@@ -22,21 +22,6 @@ public final class FSynapse {
         this.currentContext = currentContext;
     }
 
-    public RepoHelper getRepo(String name) { return com.synapmc.repo.RepoManager.getInstance().getRepo(name); }
-    public RepoScriptHelper getScripts() { return new RepoScriptHelper(null); }
-    public List<String> list(boolean isInstalled) { return getScripts().list(isInstalled); }
-    public List<String> list() { return getScripts().list(); }
-    public void addRepo(List<String> urls, boolean update) {
-        for (String url : urls) com.synapmc.repo.RepoManager.getInstance().addRepo(url, update);
-    }
-    public void addRepo(List<String> urls) { addRepo(urls, true); }
-    public void addRepo(String url, boolean update) { com.synapmc.repo.RepoManager.getInstance().addRepo(url, update); }
-    public void addRepo(String url) { addRepo(url, true); }
-    public void removeRepo(List<String> urls) {
-        for (String url : urls) com.synapmc.repo.RepoManager.getInstance().removeRepo(url);
-    }
-    public void removeRepo(String nameOrUrl) { com.synapmc.repo.RepoManager.getInstance().removeRepo(nameOrUrl); }
-
     public int closeAllContexts(boolean keepThisScriptAlive) {
         int closed = closeOtherContexts();
         if (!keepThisScriptAlive && currentContext != null && !contextClosed(currentContext)) {

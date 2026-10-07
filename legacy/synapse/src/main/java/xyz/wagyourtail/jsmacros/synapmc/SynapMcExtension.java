@@ -36,8 +36,8 @@ public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public BaseLanguage<?, ?> getLanguage(Core<?, ?> runner) { return null; }
     @Override public Set<Class<? extends BaseLibrary>> getLibraries() {
         return new LinkedHashSet<Class<? extends BaseLibrary>>(Arrays.<Class<? extends BaseLibrary>>asList(
-                FSynapMc.class, FSynapMc.Synapse.class, FSynapMc.Client.class, FSynapMc.Tag.class, FSynapMc.Editor.class,
-                FSynapMc.Extra.class, FSynapMc.Patch.class));
+                FSynapMc.class, FSynapMc.Client.class, FSynapMc.Tag.class,
+                FSynapMc.Patch.class));
     }
     @Override public BaseWrappedException<?> wrapException(Throwable error) {
         if (SynapMcShared.server != null) SynapMcShared.server.broadcast(BridgeServer.errorJson(error.toString(), null, -1));

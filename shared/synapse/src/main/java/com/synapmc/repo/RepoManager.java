@@ -129,27 +129,6 @@ public class RepoManager {
         SynapMcShared.core.removeConfigRepo(name);
     }
 
-    public com.synapmc.library.RepoHelper getRepo(String name) {
-        for (String key : getRepos().keySet())
-            if (key.equalsIgnoreCase(name)) return new com.synapmc.library.RepoHelper(key);
-        return null;
-    }
-
-    public List<String> scriptNames(String repoName, Boolean isInstalled) {
-        List<String> names = new ArrayList<>();
-        for (RepoManifest manifest : manifests.values()) {
-            if (repoName != null && !manifest.name.equalsIgnoreCase(repoName)) continue;
-            if (manifest.scripts == null) continue;
-            for (ScriptEntry entry : manifest.scripts) {
-                if (entry.name == null || !isCompatibleWithCurrentJsMacros(entry)) continue;
-                InstalledInfo info = getInstalledInfo(entry.name);
-                boolean present = info != null && manifest.name.equalsIgnoreCase(info.repoName);
-                if ((isInstalled == null || present == isInstalled) && !names.contains(entry.name)) names.add(entry.name);
-            }
-        }
-        return names;
-    }
-
     public boolean isInstalled(String name) {
         return getInstalledInfo(name) != null;
     }

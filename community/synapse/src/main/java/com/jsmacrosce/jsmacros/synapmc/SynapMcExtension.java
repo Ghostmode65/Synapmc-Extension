@@ -34,8 +34,7 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     }
     @Override public Set<Class<? extends BaseLibrary>> getLibraries() {
         return new LinkedHashSet<Class<? extends BaseLibrary>>(Arrays.<Class<? extends BaseLibrary>>asList(
-                FSynapMc.class, FSynapMc.Synapse.class, FSynapMc.Client.class, FSynapMc.Tag.class, FSynapMc.Editor.class,
-                FSynapMc.Extra.class));
+                FSynapMc.class, FSynapMc.Client.class, FSynapMc.Tag.class));
     }
     @Override public void exec(String language, String script, File file, Consumer<Throwable> onError) {
         core.exec(language, script, file, null, null, onError);
