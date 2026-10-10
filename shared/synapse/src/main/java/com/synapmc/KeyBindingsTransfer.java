@@ -55,7 +55,9 @@ public final class KeyBindingsTransfer {
         return row;
     }
 
-    public static synchronized String exportKeys() throws Exception {
+    public static synchronized String exportKeys() throws Exception { return exportKeys(archivePath()); }
+
+    public static synchronized String exportKeys(Path destination) throws Exception {
         Archive archive = new Archive();
         Object registry = registry();
         for (Object trigger : (Collection<?>) registry.getClass().getMethod("getScriptTriggers").invoke(registry))
@@ -72,8 +74,8 @@ public final class KeyBindingsTransfer {
                 archive.services.add(row);
             }
         }
-        SynapMcConfig.write(archivePath(), archive);
-        return "Exported " + (archive.triggers.size() + archive.services.size()) + " registrations to config/keys/keys.json.";
+        SynapMcConfig.write(destination, archive);
+        return "Exported " + (archive.triggers.size() + archive.services.size()) + " registrations to " + destination + ".";
     }
 
     /** Supports the File constructor in legacy and the Path constructor in newer editions. */
@@ -90,8 +92,10 @@ public final class KeyBindingsTransfer {
     private static boolean isKey(String type) { return type.startsWith("KEY_"); }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static synchronized String importKeys() throws Exception {
-        Archive archive = new Gson().fromJson(Files.readString(archivePath()), Archive.class);
+    public static synchronized String importKeys() throws Exception { return importKeys(archivePath()); }
+
+    public static synchronized String importKeys(Path source) throws Exception {
+        Archive archive = new Gson().fromJson(Files.readString(source), Archive.class);
         if (archive == null || archive.version != 1 || archive.triggers == null || archive.services == null)
             throw new IOException("Unsupported registration archive");
         Class<?> triggerClass = Class.forName(SynapMcShared.core.getScriptTriggerClassName());

@@ -135,13 +135,6 @@ public final class MacroScreenBridge {
         }
     }
 
-    public static Object trustScreen(Object parent, java.nio.file.Path folder,
-                                     Runnable onTrust, Runnable onCancel) throws Exception {
-        String name = parent.getClass().getPackageName() + ".TrustFolderScreen";
-        return Class.forName(name).getConstructor(java.nio.file.Path.class, Runnable.class, Runnable.class)
-                .newInstance(folder, onTrust, onCancel);
-    }
-
     public static void onClient(Runnable action) {
         try {
             Object client = client();
@@ -199,6 +192,29 @@ public final class MacroScreenBridge {
             return addWidget(screen, input);
         }
         throw new NoSuchMethodException("JsMacros TextInput constructor");
+    }
+
+    /** A normal accessible/clickable widget, rendered as left-aligned text only. */
+    public static Object addTextButton(Object screen, int x, int y, int width, int height,
+                                       String caption, Runnable action) throws Exception {
+        Object button = addButton(screen, x, y, width, height, caption, action);
+        for (String setter : new String[] {"setColor", "setBorderColor", "setHighlightColor"})
+            button.getClass().getMethod(setter, int.class).invoke(button, 0);
+        button.getClass().getField("horizCenter").setBoolean(button, false);
+        return button;
+    }
+
+    public static String inputValue(Object input) {
+        try { return (String) input.getClass().getField("content").get(input); }
+        catch (Exception ignored) { return ""; }
+    }
+
+    public static boolean inputFocused(Object input) {
+        for (String name : new String[] {"isFocused", "method_25370"}) {
+            try { return (Boolean) input.getClass().getMethod(name).invoke(input); }
+            catch (Exception ignored) { }
+        }
+        return true;
     }
 
     public static void inputText(Object input, String value) {

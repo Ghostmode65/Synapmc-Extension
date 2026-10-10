@@ -4,7 +4,6 @@ import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLibrary;
 import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.Core;
-import com.synapmc.library.FClient;
 import com.synapmc.library.FDownload;
 import com.synapmc.library.FEditor;
 import com.synapmc.library.FPort;
@@ -42,16 +41,6 @@ public final class FSynapMc extends PerExecLibrary {
         return service.closeAllContexts(keepThisScriptAlive);
     }
 
-    @Library("SClient")
-    public static final class Client extends PerExecLibrary {
-        private final FClient client = new FClient();
-        public Client(BaseScriptContext<?> ctx) { super(ctx); }
-        public String getOS() { return client.getOS(); }
-        public String jsVersion() { return client.jsVersion(); }
-        public boolean isFullscreen() { return client.isFullscreen(); }
-        public boolean toggleFullscreen(boolean enabled) { return client.toggleFullscreen(enabled); }
-    }
-
     @Library("Tag")
     public static final class Tag extends PerExecLibrary {
         private final FTag tag = new FTag();
@@ -64,10 +53,4 @@ public final class FSynapMc extends PerExecLibrary {
 
 
 
-    @Library("SPatch")
-    public static final class Patch extends PerExecLibrary {
-        private final FPatch patch = new FPatch();
-        public Patch(BaseScriptContext<?> ctx) { super(ctx); }
-        public FPatch.ScoreboardPatch scoreboard(int line) { return patch.scoreboard(line); }
-    }
 }

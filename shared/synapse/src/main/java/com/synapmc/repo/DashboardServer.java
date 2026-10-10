@@ -595,7 +595,8 @@ public class DashboardServer {
 
     private synchronized void installDirs(HttpExchange exchange) throws IOException {
         if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-            Map<String, String> values = new LinkedHashMap<String, String>();
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("creatorMode", SynapMcShared.config.creatorMode);
             values.put("exe", SynapMcShared.config.exeDownloadDir);
             values.put("appimage", SynapMcShared.config.appimageDownloadDir);
             sendResponse(exchange, 200, "application/json; charset=utf-8", GSON.toJson(values));
@@ -604,18 +605,29 @@ public class DashboardServer {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "text/plain", "Method Not Allowed"); return;
         }
+        boolean previousCreatorMode = SynapMcShared.config.creatorMode;
         String previousExe = SynapMcShared.config.exeDownloadDir;
         String previousAppimage = SynapMcShared.config.appimageDownloadDir;
         try {
             @SuppressWarnings("unchecked") Map<String, Object> values = GSON.fromJson(
                     new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8), Map.class);
-            SynapMcShared.config.exeDownloadDir = values != null && values.get("exe") != null
-                    ? values.get("exe").toString().trim() : "";
-            SynapMcShared.config.appimageDownloadDir = values != null && values.get("appimage") != null
-                    ? values.get("appimage").toString().trim() : "";
+            if (values == null) throw new IOException("Expected settings object");
+            if (values.containsKey("creatorMode")) {
+                if (!(values.get("creatorMode") instanceof Boolean)) throw new IOException("Creator Mode must be a toggle");
+                SynapMcShared.config.creatorMode = (Boolean) values.get("creatorMode");
+            }
+            if (values.containsKey("exe")) {
+                if (!(values.get("exe") instanceof String)) throw new IOException("EXE location must be a path");
+                SynapMcShared.config.exeDownloadDir = ((String) values.get("exe")).trim();
+            }
+            if (values.containsKey("appimage")) {
+                if (!(values.get("appimage") instanceof String)) throw new IOException("AppImage location must be a path");
+                SynapMcShared.config.appimageDownloadDir = ((String) values.get("appimage")).trim();
+            }
             if (!SynapMcShared.saveConfig()) throw new IOException("Could not save settings");
             sendResponse(exchange, 200, "application/json", "{\"ok\":true}");
         } catch (Exception e) {
+            SynapMcShared.config.creatorMode = previousCreatorMode;
             SynapMcShared.config.exeDownloadDir = previousExe;
             SynapMcShared.config.appimageDownloadDir = previousAppimage;
             sendResponse(exchange, 400, "application/json", "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");

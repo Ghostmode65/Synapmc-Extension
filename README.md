@@ -1,14 +1,13 @@
 # Synapmc-Extension
 
-Synapmc a extension for [JsMacros](https://modrinth.com/mod/jsmacros).
+Synapmc a mod extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 
 | ✅ | Features | |
 |---|---|------------|
 | ☑️ | Remote Control | Access JsMacros from outside your game or your computer|
 | ☑️ | Package Manager | Easily share and access scripts from other players |
 | ☑️ | Unified Folders | Create shared folders, all your scripts will always be accessible on any luncher that works with jsmacros: feather, prism, vanilla, and more. |
-| ☑️ | Mutli Language Support | Compatible with all current language extentions, plus comes bundled with Lua, Python and Ruby |
-
+| ☑️ | Multi Language Support | Compatible with all current language extentions, plus comes bundled with Lua, Python and Ruby |
 
 |  | Added |
 |---|---|
@@ -17,6 +16,9 @@ Synapmc a extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 | ✅ | Drag and drop to import scripts |
 | ✅ | Export/Sync registered scripts |
 | ✅ | Linux Support |
+
+
+## Install as a mod not as an extension
 
 ## Package Manager / Repositories
 

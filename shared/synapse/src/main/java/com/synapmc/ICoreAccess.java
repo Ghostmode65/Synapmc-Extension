@@ -23,6 +23,8 @@ public interface ICoreAccess {
     default Map<String, String> getAvailableLanguages() { return java.util.Collections.emptyMap(); }
     Object createScriptDropScreen();
     default Object getServices() { return null; }
+    default void triggerTooltipEvent(Object element, TooltipDrawQueue drawings) {}
+    default void triggerScoreboardEvent(ScoreboardUpdate update) {}
 
     default byte[] httpGet(String address) throws IOException {
         URL url = new URL(address);

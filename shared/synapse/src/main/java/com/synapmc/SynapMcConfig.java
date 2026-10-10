@@ -17,6 +17,8 @@ public final class SynapMcConfig {
 
     public boolean autorunEnabled = true;
     public boolean silent = false;
+    public volatile boolean chatSayEnabled = true;
+    public boolean creatorMode = false;
     public boolean tcpPortEnabled = false;
     public int tcpPort = 8765;
     public String tcpPortPassword = "";

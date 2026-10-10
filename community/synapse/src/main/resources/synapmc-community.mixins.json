@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.synapmc.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ClientMixin",
+    "HudMixin",
+    "SidebarMixin",
+    "ItemStackTextureMixin",
+    "ItemTextureRenderMixin",
+    "ItemTooltipMixin",
+    "TooltipFrameMixin",
+    "TooltipScreenMixin",
+    "ItemHelperTextureMixin",
+    "ItemTexturePackMixin",
+    "ItemTextureModelMixin",
+    "ChatMixin"
+  ]
+}

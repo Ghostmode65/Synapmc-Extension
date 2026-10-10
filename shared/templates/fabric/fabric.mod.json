@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "synapmc",
+  "version": "@version@",
+  "name": "SynapMc @title@@bundle@",
+  "description": "Shared scripts, imports, repositories, and client utilities for JsMacros @title@",
+  "environment": "client",
+  "entrypoints": @entrypoints@,
+  "mixins": ["@mixins@"],
+  "jars": [@jars@],
+  "depends": {
+    "fabricloader": ">=@loader@",
+    "minecraft": "@minecraft@",
+    "java": ">=@java@",
+    "@coreId@": "@coreVersion@"
+  },
+  "custom": {
+    "synapmc:target": "@target@"
+  }
+}

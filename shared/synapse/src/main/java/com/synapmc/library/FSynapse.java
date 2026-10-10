@@ -85,6 +85,7 @@ public final class FSynapse {
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         values.put("autorunEnabled", cfg.autorunEnabled);
         values.put("silent", cfg.silent);
+        values.put("chatSayEnabled", cfg.chatSayEnabled);
         values.put("tcpPortEnabled", cfg.tcpPortEnabled);
         values.put("tcpPort", cfg.tcpPort);
         values.put("tcpPortPassword", cfg.tcpPortPassword);
@@ -109,6 +110,10 @@ public final class FSynapse {
             case "autorunEnabled":
                 if (!(value instanceof Boolean)) return false;
                 cfg.autorunEnabled = (Boolean) value;
+                break;
+            case "chatSayEnabled":
+                if (!(value instanceof Boolean)) return false;
+                cfg.chatSayEnabled = (Boolean) value;
                 break;
             case "silent":
                 if (!(value instanceof Boolean)) return false;
@@ -159,7 +164,18 @@ public final class FSynapse {
                 Map<String, String> folders = new LinkedHashMap<String, String>();
                 for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                     if (!(entry.getKey() instanceof String) || !(entry.getValue() instanceof String)) return false;
-                    folders.put((String) entry.getKey(), (String) entry.getValue());
+                    String name = (String) entry.getKey();
+                    String directory = (String) entry.getValue();
+                    if (settingName.equals("unifyFolders")) {
+                        if (name.isBlank() || name.equals(".") || name.equals("..") || name.contains("/") || name.contains("\\")) return false;
+                        try {
+                            java.nio.file.Path.of(name);
+                            java.nio.file.Path path = java.nio.file.Path.of(directory);
+                            if (!path.isAbsolute() && !SynapMcShared.roamingDir.toPath().toAbsolutePath().normalize()
+                                    .resolve(path).normalize().startsWith(SynapMcShared.roamingDir.toPath().toAbsolutePath().normalize())) return false;
+                        } catch (java.nio.file.InvalidPathException error) { return false; }
+                    }
+                    folders.put(name, directory);
                 }
                 refreshUnify = settingName.equals("unifyFolders");
                 if (refreshUnify) cfg.unifyFolders = folders;
@@ -173,7 +189,7 @@ public final class FSynapse {
             return false;
         }
         if (refreshTcp) SynapMcShared.refreshTcp();
-        if (refreshUnify) SynapMcShared.refreshUnifyFolders();
+        if (refreshUnify) SynapMcShared.refreshUnifyFolders((Map<String, String>) previous);
         return true;
     }
 
@@ -182,6 +198,7 @@ public final class FSynapse {
         switch (name) {
             case "autorunEnabled": cfg.autorunEnabled = (Boolean) previous; break;
             case "silent": cfg.silent = (Boolean) previous; break;
+            case "chatSayEnabled": cfg.chatSayEnabled = (Boolean) previous; break;
             case "tcpPortEnabled": cfg.tcpPortEnabled = (Boolean) previous; break;
             case "tcpPort": cfg.tcpPort = (Integer) previous; break;
             case "tcpPortPassword": cfg.tcpPortPassword = (String) previous; break;

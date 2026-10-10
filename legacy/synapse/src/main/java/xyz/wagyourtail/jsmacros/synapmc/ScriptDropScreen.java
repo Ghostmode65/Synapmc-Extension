@@ -28,5 +28,8 @@ public final class ScriptDropScreen extends ScriptScreen implements ScriptDropUi
         if (vertical != 0) { ui.scroll(vertical); return true; }
         return super.method_25401(mouseX, mouseY, vertical);
     }
+    @Override public boolean method_25404(int key, int scanCode, int modifiers) {
+        return ui.keyPressed(key) || super.method_25404(key, scanCode, modifiers);
+    }
     @Override public void scroll(double amount) { ui.scroll(amount); }
 }

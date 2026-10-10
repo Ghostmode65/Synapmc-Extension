@@ -3,7 +3,6 @@ package xyz.wagyourtail.jsmacros.synapmc.library;
 import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLibrary;
 import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
-import com.synapmc.library.FClient;
 import com.synapmc.library.FDownload;
 import com.synapmc.library.FEditor;
 import com.synapmc.library.FPort;
@@ -39,16 +38,6 @@ public final class FSynapMc extends PerExecLibrary {
     public boolean saveJsConfig(String name, Object value) { return service.saveJsConfig(name, value); }
     public int closeAllContexts(boolean keepThisScriptAlive) {
         return service.closeAllContexts(keepThisScriptAlive);
-    }
-
-    @Library("SClient")
-    public static final class Client extends PerExecLibrary {
-        private final FClient client = new FClient();
-        public Client(BaseScriptContext<?> ctx) { super(ctx); }
-        public String getOS() { return client.getOS(); }
-        public String jsVersion() { return client.jsVersion(); }
-        public boolean isFullscreen() { return client.isFullscreen(); }
-        public boolean toggleFullscreen(boolean enabled) { return client.toggleFullscreen(enabled); }
     }
 
     @Library("Tag")

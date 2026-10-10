@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.synapmc.mixin",
+  "plugin": "com.synapmc.mixin.LegacyMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "ClientMixin",
+    "HudMixin",
+    "ScoreboardsMixin",
+    "SidebarMixin",
+    "ItemStackTextureMixin",
+    "ItemTextureRenderMixin",
+    "ItemTooltipMixin",
+    "TooltipFrameMixin",
+    "TooltipScreenMixin",
+    "ItemHelperTextureMixin",
+    "ItemTexturePackMixin",
+    "LegacyItemTextureLoaderMixin",
+    "LegacyItemTextureModelMixin",
+    "ChatMixin"
+  ]
+}

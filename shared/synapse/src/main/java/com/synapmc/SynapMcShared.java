@@ -79,8 +79,9 @@ public final class SynapMcShared {
             String mods = new File(minecraft, "mods").getAbsolutePath();
             tags.put("mods", mods);
             tags.put("mod", mods);
-            tags.put("desktop", mods);
+
         }
+        tags.put("desktop", new File(System.getProperty("user.home"), "Desktop").getAbsolutePath());
         return tags;
     }
 
@@ -142,6 +143,32 @@ public final class SynapMcShared {
         if (bridge != null) bridge.broadcast(BridgeServer.errorJson(failure.toString(), file.getName(), -1));
     }
 
+    public static void refreshUnifyFolders(Map<String, String> previous) {
+        if (core.getMacroFolder() == null) return;
+        Path root = core.getMacroFolder().toPath().toAbsolutePath().normalize();
+        Path shared = roamingDir.toPath().toAbsolutePath().normalize();
+        for (Map.Entry<String, String> entry : previous.entrySet()) {
+            String name = entry.getKey();
+            if (java.util.Objects.equals(entry.getValue(), config.unifyFolders.get(name))) continue;
+            if (name == null || name.isEmpty() || name.equals(".") || name.equals("..") || name.contains("/") || name.contains("\\")
+                    || entry.getValue() == null || entry.getValue().isBlank()) continue;
+            Path link = root.resolve(name);
+            try {
+                Path target = shared.resolve(entry.getValue()).normalize();
+                if (!Files.exists(link, java.nio.file.LinkOption.NOFOLLOW_LINKS)) continue;
+                var attributes = Files.readAttributes(link, java.nio.file.attribute.BasicFileAttributes.class,
+                        java.nio.file.LinkOption.NOFOLLOW_LINKS);
+                boolean matches = attributes.isSymbolicLink()
+                        ? link.getParent().resolve(Files.readSymbolicLink(link)).normalize().equals(target)
+                        : attributes.isOther() && Files.exists(target) && Files.isSameFile(link, target);
+                if (matches) Files.delete(link);
+            } catch (Exception error) {
+                error("[SynapMc] Could not remove old " + name + " link: " + error.getMessage());
+            }
+        }
+        refreshUnifyFolders();
+    }
+
     public static void refreshUnifyFolders() {
         File macroFolder = core.getMacroFolder();
         if (macroFolder == null || config.unifyFolders == null) return;
@@ -168,9 +195,9 @@ public final class SynapMcShared {
         for (Map.Entry<String, String> entry : config.unifyFolders.entrySet()) {
             String name = entry.getKey();
             String relative = entry.getValue();
-            if (name == null || name.isEmpty() || name.contains("/") || name.contains("\\") || name.equals("..") || relative == null) continue;
+            if (name == null || name.isEmpty() || name.contains("/") || name.contains("\\") || name.equals(".") || name.equals("..") || relative == null || relative.isBlank()) continue;
             Path target = roamingRoot.resolve(relative).normalize();
-            if (!target.startsWith(roamingRoot)) continue;
+            if (!Path.of(relative).isAbsolute() && !target.startsWith(roamingRoot)) continue;
             Path junction = macroRoot.resolve(name).normalize();
             if (!junction.startsWith(macroRoot)) continue;
             try {

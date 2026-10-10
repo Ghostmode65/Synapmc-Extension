@@ -11,6 +11,12 @@ import com.synapmc.MinecraftAccess;
 import com.synapmc.LanguageAccess;
 import com.synapmc.SynapMcShared;
 import com.synapmc.SynapMcSettingsUi;
+import com.synapmc.LoreWindow;
+import com.synapmc.TooltipDrawQueue;
+import com.synapmc.TooltipEvents;
+import com.synapmc.event.EventRenderTooltip;
+import com.synapmc.event.EventScoreboard;
+import com.synapmc.ScoreboardUpdate;
 
 import java.io.File;
 import java.util.Arrays;
@@ -25,6 +31,8 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     @Override public String getExtensionName() { return "synapmc"; }
     @Override public void init(Core<?, ?> core) {
         this.core = core;
+        TooltipEvents.register(core.eventRegistry, EventRenderTooltip.class);
+        TooltipEvents.register(core.eventRegistry, "Scoreboard", EventScoreboard.class);
         SynapMcShared.init(this);
         try { core.config.addOptions("synapmc", SynapMcOptions.class); }
         catch (Exception error) { SynapMcShared.error("[SynapMc] Could not register settings: " + error); }
@@ -34,7 +42,7 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     }
     @Override public Set<Class<? extends BaseLibrary>> getLibraries() {
         return new LinkedHashSet<Class<? extends BaseLibrary>>(Arrays.<Class<? extends BaseLibrary>>asList(
-                FSynapMc.class, FSynapMc.Client.class, FSynapMc.Tag.class));
+                FSynapMc.class, FSynapMc.Tag.class));
     }
     @Override public void exec(String language, String script, File file, Consumer<Throwable> onError) {
         core.exec(language, script, file, null, null, onError);
@@ -48,11 +56,19 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     @Override public Object getJsMacrosConfigManager() { return core.config; }
     @Override public String getScriptTriggerClassName() { return "xyz.wagyourtail.jsmacros.core.config.ScriptTrigger"; }
     @Override public Object getProfile() { return core.profile; }
+    @Override public void triggerTooltipEvent(Object element, TooltipDrawQueue drawings) {
+        core.profile.triggerEvent(new EventRenderTooltip(core, (LoreWindow) element, drawings));
+    }
+    @Override public void triggerScoreboardEvent(ScoreboardUpdate update) {
+        EventScoreboard event = new EventScoreboard(core, update);
+        try { core.profile.triggerEvent(event); }
+        finally { if (event.isCanceled()) update.cancel((Object) null); }
+    }
     @Override public Object getServices() { return core.services; }
     @Override public String getJsVersion() { return "reload"; }
     @Override public String getLanguageForFile(File file) {
         LanguageExtension extension = core.extensions.getExtensionForFile(file);
-        return extension == null ? null : extension.getExtensionName();
+        return LanguageAccess.forFile(extension, file);
     }
     @Override public Map<String, String> getAvailableLanguages() { return LanguageAccess.available(core.extensions); }
     @Override public Object createScriptDropScreen() { return new ScriptDropScreen(); }

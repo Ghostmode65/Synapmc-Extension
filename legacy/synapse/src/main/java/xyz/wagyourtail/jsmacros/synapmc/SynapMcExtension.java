@@ -5,6 +5,13 @@ import com.synapmc.MinecraftAccess;
 import com.synapmc.LanguageAccess;
 import com.synapmc.SynapMcShared;
 import com.synapmc.SynapMcSettingsUi;
+import com.synapmc.LoreWindow;
+import com.synapmc.TooltipDrawQueue;
+import com.synapmc.TooltipEvents;
+import com.synapmc.event.EventRenderTooltip;
+import com.synapmc.event.EventScoreboard;
+import com.synapmc.ScoreboardUpdate;
+import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
 import com.synapmc.server.BridgeServer;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.extensions.Extension;
@@ -23,6 +30,9 @@ import java.util.function.Consumer;
 public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public String getLanguageImplName() { return "synapmc"; }
     @Override public void init() {
+        // Older cores use a BaseEvent interface and cannot load the newer event subclass.
+        TooltipEvents.register(Core.getInstance().eventRegistry, BaseEvent.class.isInterface() ? null : EventRenderTooltip.class);
+        TooltipEvents.register(Core.getInstance().eventRegistry, "Scoreboard", BaseEvent.class.isInterface() ? null : EventScoreboard.class);
         SynapMcShared.init(this);
         try { Core.getInstance().config.addOptions("synapmc", SynapMcOptions.class); }
         catch (Exception error) { SynapMcShared.error("[SynapMc] Could not register settings: " + error); }
@@ -36,8 +46,7 @@ public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public BaseLanguage<?, ?> getLanguage(Core<?, ?> runner) { return null; }
     @Override public Set<Class<? extends BaseLibrary>> getLibraries() {
         return new LinkedHashSet<Class<? extends BaseLibrary>>(Arrays.<Class<? extends BaseLibrary>>asList(
-                FSynapMc.class, FSynapMc.Client.class, FSynapMc.Tag.class,
-                FSynapMc.Patch.class));
+                FSynapMc.class, FSynapMc.Tag.class));
     }
     @Override public BaseWrappedException<?> wrapException(Throwable error) {
         if (SynapMcShared.server != null) SynapMcShared.server.broadcast(BridgeServer.errorJson(error.toString(), null, -1));
@@ -57,6 +66,16 @@ public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public Object getJsMacrosConfigManager() { return Core.getInstance().config; }
     @Override public String getScriptTriggerClassName() { return "xyz.wagyourtail.jsmacros.core.config.ScriptTrigger"; }
     @Override public Object getProfile() { return Core.getInstance().profile; }
+    @Override public void triggerTooltipEvent(Object element, TooltipDrawQueue drawings) {
+        Core<?, ?> core = Core.getInstance();
+        core.profile.triggerEvent(new EventRenderTooltip(core, (LoreWindow) element, drawings));
+    }
+    @Override public void triggerScoreboardEvent(ScoreboardUpdate update) {
+        Core<?, ?> core = Core.getInstance();
+        EventScoreboard event = new EventScoreboard(core, update);
+        try { core.profile.triggerEvent(event); }
+        finally { if (event.isCanceled()) update.cancel((Object) null); }
+    }
     @Override public Object getServices() { return Core.getInstance().services; }
     @Override public String getJsVersion() { return "legacy"; }
     @Override public String getLanguageForFile(File file) {

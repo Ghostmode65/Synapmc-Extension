@@ -28,5 +28,8 @@ public final class ScriptDropScreen extends ScriptScreen implements ScriptDropUi
         if (vertical != 0) { ui.scroll(vertical); return true; }
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        return ui.keyPressed(event.key()) || super.keyPressed(event);
+    }
     @Override public void scroll(double amount) { ui.scroll(amount); }
 }

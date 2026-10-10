@@ -43,9 +43,17 @@ public final class ScriptDropService {
     }
 
     public static List<Entry> preview(List<File> files, Map<String, String> overrides, Map<String, String> names) {
+        return preview(files, overrides, names, "global/imported/", java.util.Collections.emptyMap());
+    }
+
+    public static List<Entry> preview(List<File> files, Map<String, String> overrides, Map<String, String> names,
+                                      String destination, Map<String, String> sourceFolders) {
         List<Entry> entries = new ArrayList<Entry>();
         if (files == null || SynapMcShared.core == null) return entries;
-        Path destinationRoot = importRoot();
+        Path destinationRoot;
+        String destinationProblem = null;
+        try { destinationRoot = destinationRoot(destination); }
+        catch (IllegalArgumentException error) { destinationRoot = null; destinationProblem = error.getMessage(); }
         Set<Path> reserved = new HashSet<Path>();
         Set<Path> seen = new LinkedHashSet<Path>();
         for (File file : files) {
@@ -65,6 +73,7 @@ public final class ScriptDropService {
             Map<String, String> installed = SynapMcShared.core.getAvailableLanguages();
             String requested = overrides == null ? null : overrides.get(source.toString());
             if (requested != null && installed.containsKey(requested)) language = requested;
+            if (language != null && !installed.containsKey(language)) language = null;
             String extension = language == null ? null : installed.get(language);
             if (extension == null && language != null) {
                 String name = file.getName(); int dot = name.lastIndexOf('.');
@@ -78,16 +87,21 @@ public final class ScriptDropService {
                 entries.add(new Entry(file, language, null, "Enter a filename without folders or reserved characters", characters, extension));
                 continue;
             }
-            if (language != null && extension != null) {
+            if (requested != null && language != null && extension != null) {
                 int dot = destinationName.lastIndexOf('.');
                 String base = dot > 0 ? destinationName.substring(0, dot) : destinationName;
                 destinationName = base + "." + extension;
             }
-            Path destination = language == null
-                    ? null : uniquePath(destinationRoot, destinationName, reserved);
-            if (destination != null) reserved.add(destination);
-            String problem = language == null ? "No installed JsMacros language accepts this file" : null;
-            entries.add(new Entry(file, language, destination, problem, characters, extension));
+            Path target = null;
+            String problem = destinationProblem;
+            if (language == null) problem = "No installed JsMacros language accepts this file";
+            if (problem == null) {
+                Path folder = destinationRoot.resolve(sourceFolders.getOrDefault(source.toString(), "")).normalize();
+                if (!folder.startsWith(destinationRoot)) problem = "Folder is outside the import destination";
+                else target = uniquePath(folder, destinationName, reserved);
+            }
+            if (target != null) reserved.add(target);
+            entries.add(new Entry(file, language, target, problem, characters, extension));
         }
         return entries;
     }
@@ -96,16 +110,17 @@ public final class ScriptDropService {
         if (entry == null || entry.problem != null || entry.destination == null) {
             throw new IOException("The selected file cannot be imported");
         }
-        Path root = importRoot();
+        Path root = destinationRoot("global/");
         Files.createDirectories(root);
         if (!Files.isRegularFile(entry.source.toPath())) throw new IOException("Source file is unavailable");
         Path destination = entry.destination.toAbsolutePath().normalize();
-        if (!destination.startsWith(root) || !destination.getParent().equals(root)) {
-            throw new IOException("Import destination is outside global/imported");
+        if (!destination.startsWith(root) || destination.equals(root)) {
+            throw new IOException("Import destination is outside global");
         }
         if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
-            destination = uniquePath(root, destination.getFileName().toString(), new HashSet<Path>());
+            destination = uniquePath(destination.getParent(), destination.getFileName().toString(), new HashSet<Path>());
         }
+        Files.createDirectories(destination.getParent());
         Files.copy(entry.source.toPath(), destination);
         return destination;
     }
@@ -158,9 +173,23 @@ public final class ScriptDropService {
         return true;
     }
 
-    private static Path importRoot() {
-        return SynapMcShared.core.getMacroFolder().toPath().toAbsolutePath().normalize()
-                .resolve("global/imported").normalize();
+    public static Path destinationRoot(String directory) {
+        String value = directory == null ? "" : directory.replace('\\', '/').trim();
+        if (!value.equals("global") && !value.startsWith("global/")) throw new IllegalArgumentException("Destination must start with global/");
+        Path macroRoot = SynapMcShared.core.getMacroFolder().toPath().toAbsolutePath().normalize();
+        Path target;
+        try { target = macroRoot.resolve(value).normalize(); }
+        catch (java.nio.file.InvalidPathException error) { throw new IllegalArgumentException("Invalid destination"); }
+        if (!target.startsWith(macroRoot.resolve("global"))) throw new IllegalArgumentException("Destination must stay inside global/");
+        return target;
+    }
+
+    public static List<File> expandFiles(File selection) throws IOException {
+        if (!selection.isDirectory()) return List.of(selection);
+        try (java.util.stream.Stream<Path> paths = Files.walk(selection.toPath())) {
+            return paths.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).sorted()
+                    .map(Path::toFile).collect(java.util.stream.Collectors.toList());
+        }
     }
 
     private static boolean validFilename(String name) {

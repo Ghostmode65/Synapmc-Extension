@@ -15,13 +15,17 @@ public final class ScriptDropUi {
     private final List<RowControls> rowControls = new ArrayList<RowControls>();
     private final Map<String, String> languageOverrides = new LinkedHashMap<String, String>();
     private final Map<String, String> nameOverrides = new LinkedHashMap<String, String>();
+    private final Map<String, String> sourceFolders = new LinkedHashMap<>();
+    private String destination = "global/imported/";
+    private Object destinationButton;
+    private Object destinationInput;
+    private boolean editingDestination;
     private String editingSource;
     private boolean attempted;
     private Object registerButton;
     private String registerKind = "";
     private boolean registerScript;
     private boolean busy;
-    private boolean waitingTrust;
     private int scrollOffset;
     private int visibleRows;
     private String status = "";
@@ -33,7 +37,7 @@ public final class ScriptDropUi {
         int width = MacroScreenBridge.dimension(screen, "width", "field_22789");
         int height = MacroScreenBridge.dimension(screen, "height", "field_22790");
         int buttonY = height - 26;
-        visibleRows = Math.max(1, (height - 138) / 20);
+        visibleRows = Math.max(1, (height - 116) / 20);
         int slot = Math.max(54, (width - 16) / 4);
         try {
             MacroScreenBridge.addButton(screen, 8, buttonY, slot - 4, 20, "Choose files", this::choose);
@@ -46,6 +50,7 @@ public final class ScriptDropUi {
                 files.clear();
                 languageOverrides.clear();
                 nameOverrides.clear();
+                sourceFolders.clear();
                 editingSource = null;
                 attempted = false;
                 scrollOffset = 0;
@@ -53,11 +58,23 @@ public final class ScriptDropUi {
                 refresh();
             });
             int backX = 8 + 3 * slot;
-            MacroScreenBridge.addButton(screen, backX, height - 73, slot - 4, 18, "Export Keys", () -> transferKeys(true));
+            MacroScreenBridge.addButton(screen, backX - slot, height - 51, slot - 4, 18, "Export Keys", () -> transferKeys(true));
+            destinationButton = MacroScreenBridge.addTextButton(screen, 8, 40, Math.max(120, width - 16), 18,
+                    "Destination: " + destination, () -> {
+                        if (busy) return;
+                        finishEditing();
+                        editingDestination = true;
+                        MacroScreenBridge.inputText(destinationInput, destination);
+                        refresh();
+                        MacroScreenBridge.focusInput(screen, destinationInput);
+                    });
+            destinationInput = MacroScreenBridge.addTextInput(screen, 8, 40, Math.max(120, width - 16), 18,
+                    value -> { if (editingDestination) destination = value; });
             MacroScreenBridge.addButton(screen, backX, height - 51, slot - 4, 18, "Import Keys", () -> transferKeys(false));
             registerKind = MacroScreenBridge.importerContext(screen);
             if ("key".equals(registerKind) || "event".equals(registerKind) || "service".equals(registerKind)) {
-                registerButton = MacroScreenBridge.addButton(screen, 68, height - 51, 132, 18,
+                int registerWidth = Math.min(132, slot - 4);
+                registerButton = MacroScreenBridge.addButton(screen, 8 + slot, height - 51, registerWidth, 18,
                         registerLabel(), () -> {
                             if (!busy) {
                                 registerScript = !registerScript;
@@ -69,22 +86,31 @@ public final class ScriptDropUi {
             int rowWidth = Math.min(600, width - 24);
             int left = (width - rowWidth) / 2;
             int languageWidth = Math.min(100, rowWidth / 4);
-            int nameWidth = rowWidth - languageWidth - 82;
+            int nameWidth = rowWidth - languageWidth - 106;
             for (int row = 0; row < visibleRows; row++) {
                 final RowControls controls = new RowControls();
                 int y = 60 + row * 20;
-                controls.name = MacroScreenBridge.addButton(screen, left, y, nameWidth, 18, "", () -> { });
-                controls.rename = MacroScreenBridge.addTextInput(screen, left, y, nameWidth, 18, value -> {
+                controls.remove = MacroScreenBridge.addButton(screen, left, y, 20, 18, "X", () -> {
+                    if (busy || controls.entry == null) return;
+                    String key = sourceKey(controls.entry);
+                    files.removeIf(file -> file.toPath().toAbsolutePath().normalize().toString().equals(key));
+                    nameOverrides.remove(key); languageOverrides.remove(key); sourceFolders.remove(key);
+                    if (key.equals(editingSource)) editingSource = null;
+                    refresh();
+                });
+                int nameX = left + 24;
+                controls.name = MacroScreenBridge.addButton(screen, nameX, y, nameWidth, 18, "", () -> { });
+                controls.rename = MacroScreenBridge.addTextInput(screen, nameX, y, nameWidth, 18, value -> {
                     if (busy || controls.entry == null || !sourceKey(controls.entry).equals(editingSource)) return;
                     nameOverrides.put(sourceKey(controls.entry), value);
                     refresh();
                 });
-                controls.status = MacroScreenBridge.addButton(screen, left + nameWidth + 4, y, 24, 18,
+                controls.status = MacroScreenBridge.addButton(screen, nameX + nameWidth + 4, y, 24, 18,
                         "✎", () -> toggleRename(controls));
-                controls.edit = MacroScreenBridge.addButton(screen, left + nameWidth + 32, y, 42, 18, "Edit", () -> {
+                controls.edit = MacroScreenBridge.addButton(screen, nameX + nameWidth + 32, y, 42, 18, "Edit", () -> {
                     if (!busy && controls.entry != null) MinecraftAccess.openEditor(controls.entry.source, 1, screen);
                 });
-                controls.language = MacroScreenBridge.addButton(screen, left + nameWidth + 78, y,
+                controls.language = MacroScreenBridge.addButton(screen, nameX + nameWidth + 78, y,
                         languageWidth, 18, "", () -> cycleLanguage(controls));
                 rowControls.add(controls);
             }
@@ -98,7 +124,7 @@ public final class ScriptDropUi {
         if (paths == null || busy) return;
         int added = 0;
         for (Path path : paths) {
-            if (path != null) { files.add(path.toFile()); added++; }
+            if (path != null) { added += addSelection(path.toFile()); }
         }
         if (added > 0) {
             scrollOffset = 0;
@@ -119,7 +145,7 @@ public final class ScriptDropUi {
                         null, null, true);
                 if (selection != null && !selection.isEmpty()) MacroScreenBridge.onClient(() -> {
                     String[] selected = selection.split("\\|");
-                    for (String path : selected) files.add(new File(path));
+                    for (String path : selected) addSelection(new File(path));
                     scrollOffset = 0;
                     status = selected.length + (selected.length == 1 ? " file added." : " files added.");
                     refresh();
@@ -135,9 +161,40 @@ public final class ScriptDropUi {
         chooser.start();
     }
 
-    private void submit(boolean importing) {
-        if (busy || waitingTrust) return;
+    private int addSelection(File selection) {
+        try {
+            List<File> expanded = ScriptDropService.expandFiles(selection);
+            for (File file : expanded) {
+                if (!files.contains(file)) files.add(file);
+                if (selection.isDirectory()) sourceFolders.put(file.toPath().toAbsolutePath().normalize().toString(),
+                        selection.toPath().toAbsolutePath().getParent().relativize(file.toPath().toAbsolutePath().getParent()).toString());
+            }
+            return expanded.size();
+        } catch (Exception error) { status = "Could not read folder: " + error.getMessage(); return 0; }
+    }
+
+    public boolean keyPressed(int key) {
+        if ((key == 257 || key == 335) && (editingSource != null || editingDestination)) { finishEditing(); return true; }
+        return false;
+    }
+
+    private void finishEditing() {
+        for (RowControls controls : rowControls) {
+            if (controls.entry != null && sourceKey(controls.entry).equals(editingSource))
+                nameOverrides.put(editingSource, MacroScreenBridge.inputValue(controls.rename));
+        }
         editingSource = null;
+        if (editingDestination) {
+            destination = MacroScreenBridge.inputValue(destinationInput).replace('\\', '/').trim();
+            if (!destination.equals("global") && !destination.startsWith("global/")) destination = "global/" + destination;
+            editingDestination = false;
+        }
+        refresh();
+    }
+
+    private void submit(boolean importing) {
+        if (busy) return;
+        finishEditing();
         attempted = true;
         List<ScriptDropService.Entry> entries = preview();
         int valid = 0;
@@ -146,28 +203,6 @@ public final class ScriptDropUi {
             status = "No scripts ready. Check highlighted rows.";
             refresh();
             return;
-        }
-        if (!importing) {
-            try {
-                Path folder = TrustedScriptFolders.firstUntrusted(entries);
-                if (folder != null) {
-                    Object prompt = MacroScreenBridge.trustScreen(screen, folder,
-                            () -> { waitingTrust = false; submit(false); },
-                            () -> { waitingTrust = false; status = "Execution canceled."; refresh(); });
-                    waitingTrust = true;
-                    if (!MacroScreenBridge.showChild(screen, prompt)) {
-                        waitingTrust = false;
-                        status = "Could not open folder trust prompt. See log.";
-                        refresh();
-                    }
-                    return;
-                }
-            } catch (Exception error) {
-                status = "Could not check trusted folders. See log.";
-                SynapMcShared.error("[SynapMc] Could not check trusted folders: " + error);
-                refresh();
-                return;
-            }
         }
         busy = true;
         status = importing ? "Importing " + valid + " file(s)..." : "Executing " + valid + " file(s)...";
@@ -209,6 +244,7 @@ public final class ScriptDropUi {
                     files.removeIf(file -> !failedSources.contains(file.toPath().toAbsolutePath().normalize().toString()));
                     languageOverrides.keySet().retainAll(failedSources);
                     nameOverrides.keySet().retainAll(failedSources);
+                    sourceFolders.keySet().retainAll(failedSources);
                     scrollOffset = 0;
                 }
                 status = (importing ? "Imported " : "Started ") + completed + " file(s)"
@@ -223,14 +259,25 @@ public final class ScriptDropUi {
     private String registerLabel() { return "Register script: " + (registerScript ? "On" : "Off"); }
 
     private void transferKeys(boolean exporting) {
-        if (busy || waitingTrust) return;
+        if (busy) return;
         busy = true;
         status = exporting ? "Exporting registrations..." : "Importing registrations...";
         refresh();
         Thread worker = new Thread(() -> {
             String result;
             try {
-                result = exporting ? KeyBindingsTransfer.exportKeys() : KeyBindingsTransfer.importKeys();
+                Path directory = SynapMcShared.roamingDir.toPath().resolve("config/keys");
+                java.nio.file.Files.createDirectories(directory);
+                Class<?> dialogs = Class.forName("org.lwjgl.util.tinyfd.TinyFileDialogs");
+                String selected;
+                if (exporting) selected = (String) dialogs.getMethod("tinyfd_saveFileDialog", CharSequence.class,
+                        CharSequence.class, Class.forName("org.lwjgl.PointerBuffer"), CharSequence.class)
+                        .invoke(null, "Export keys", directory.resolve("keys.json").toString(), null, "JSON files");
+                else selected = (String) dialogs.getMethod("tinyfd_openFileDialog", CharSequence.class,
+                        CharSequence.class, Class.forName("org.lwjgl.PointerBuffer"), CharSequence.class, boolean.class)
+                        .invoke(null, "Import keys", directory.toString() + File.separator, null, "JSON files", false);
+                result = selected == null ? "Registration transfer canceled."
+                        : exporting ? KeyBindingsTransfer.exportKeys(Path.of(selected)) : KeyBindingsTransfer.importKeys(Path.of(selected));
             } catch (Exception error) {
                 result = "Registration transfer failed. See log.";
                 SynapMcShared.error("[SynapMc] Registration transfer failed: " + error);
@@ -260,6 +307,9 @@ public final class ScriptDropUi {
         int height = MacroScreenBridge.dimension(screen, "height", "field_22790");
         if (width == 0 || height == 0) return;
         if (!status.isEmpty()) line(status, 8, 28, 0xFFFFFFFF);
+        MacroScreenBridge.caption(destinationButton, "Destination: " + destination);
+        MacroScreenBridge.visible(destinationButton, !editingDestination);
+        MacroScreenBridge.visible(destinationInput, editingDestination);
         for (RowControls controls : rowControls) {
             controls.entry = null;
             controls.visible(false);
@@ -269,7 +319,7 @@ public final class ScriptDropUi {
             return;
         }
         List<ScriptDropService.Entry> entries = preview();
-        line("Selected: " + entries.size() + "  Destination: global/imported/", 8, 44, 0xFFBBBBBB);
+        line("Selected: " + entries.size(), 8, 8, 0xFFBBBBBB);
         scrollOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, entries.size() - visibleRows)));
         int start = scrollOffset;
         for (int row = 0; row < rowControls.size(); row++) {
@@ -292,7 +342,7 @@ public final class ScriptDropUi {
                     ? "Language is installed: " + entry.language : entry.problem);
             MacroScreenBridge.caption(controls.language, languageLabel(entry) + " ↻");
             int color = attempted && entry.problem != null ? 0xFFFF5555 : 0xFFFFFFFF;
-            for (Object widget : new Object[] {controls.name, controls.rename, controls.status, controls.edit, controls.language})
+            for (Object widget : new Object[] {controls.remove, controls.name, controls.rename, controls.status, controls.edit, controls.language})
                 MacroScreenBridge.textColor(widget, color);
         }
         if (entries.size() > visibleRows) {
@@ -312,7 +362,7 @@ public final class ScriptDropUi {
     }
 
     private List<ScriptDropService.Entry> preview() {
-        return ScriptDropService.preview(files, languageOverrides, nameOverrides);
+        return ScriptDropService.preview(files, languageOverrides, nameOverrides, destination, sourceFolders);
     }
 
     private static String sourceKey(ScriptDropService.Entry entry) {
@@ -322,7 +372,9 @@ public final class ScriptDropUi {
     private void toggleRename(RowControls controls) {
         if (busy || controls.entry == null) return;
         String key = sourceKey(controls.entry);
-        editingSource = key.equals(editingSource) ? null : key;
+        if (key.equals(editingSource)) { finishEditing(); return; }
+        if (editingSource != null || editingDestination) finishEditing();
+        editingSource = key;
         refresh();
         if (editingSource != null) MacroScreenBridge.focusInput(screen, controls.rename);
     }
@@ -348,6 +400,11 @@ public final class ScriptDropUi {
     }
 
     public void render(Object context) {
+        if (editingDestination && !MacroScreenBridge.inputFocused(destinationInput)) finishEditing();
+        if (editingSource != null) for (RowControls controls : rowControls) {
+            if (controls.entry != null && sourceKey(controls.entry).equals(editingSource)
+                    && !MacroScreenBridge.inputFocused(controls.rename)) { finishEditing(); break; }
+        }
         for (Line line : text) MacroScreenBridge.drawText(context, screen, line.value, line.x, line.y, line.color);
     }
 
@@ -368,6 +425,7 @@ public final class ScriptDropUi {
     }
 
     private static final class RowControls {
+        Object remove;
         Object name;
         Object rename;
         Object status;
@@ -376,6 +434,7 @@ public final class ScriptDropUi {
         ScriptDropService.Entry entry;
 
         void visible(boolean visible) {
+            MacroScreenBridge.visible(remove, visible);
             MacroScreenBridge.visible(name, visible);
             MacroScreenBridge.visible(rename, false);
             MacroScreenBridge.visible(status, visible);

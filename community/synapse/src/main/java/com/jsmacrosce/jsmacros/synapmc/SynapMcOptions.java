@@ -1,6 +1,8 @@
 package com.jsmacrosce.jsmacros.synapmc;
 
 import com.jsmacrosce.jsmacros.core.config.Option;
+import com.jsmacrosce.jsmacros.core.config.OptionType;
+import java.util.Map;
 import com.synapmc.SynapMcSettingsUi;
 
 public final class SynapMcOptions {
@@ -39,5 +41,14 @@ public final class SynapMcOptions {
     @Option(translationKey = "synapmc.settings.downloadMaxMb", group = {"synapmc.settings"}, setter = "setDownloadMaxMb")
     public int getDownloadMaxMb() { return (Integer) SynapMcSettingsUi.get("downloadMaxMb"); }
     public void setDownloadMaxMb(int value) { SynapMcSettingsUi.set("downloadMaxMb", value); }
+
+    @Option(translationKey = "synapmc.settings.unifyFolders", group = {"synapmc.settings", "synapmc.settings.unifyFolders"},
+            type = @OptionType("string"), setter = "setUnifyFolders")
+    public Map<String, String> getUnifyFolders() { return SynapMcSettingsUi.unifiedFolders(); }
+    public void setUnifyFolders(Map<String, String> value) { SynapMcSettingsUi.set("unifyFolders", value); }
+
+    @Option(translationKey = "synapmc.settings.chatSayEnabled", group = {"synapmc.settings"}, setter = "setChatSayEnabled")
+    public boolean getChatSayEnabled() { return (Boolean) SynapMcSettingsUi.get("chatSayEnabled"); }
+    public void setChatSayEnabled(boolean value) { SynapMcSettingsUi.set("chatSayEnabled", value); }
 
 }
