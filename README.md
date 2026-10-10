@@ -19,8 +19,8 @@ Synapmc a mod extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 
 
 ## Install as a mod not as an extension
-This requires Fabric and Fabric Api. 
-Minecraft versions 1.21 - 26.2
+This requires Fabric and Fabric Api.  <br>
+Minecraft versions 1.21 - 26.2 <br>
 
 ## Package Manager / Repositories
 
