@@ -22,19 +22,8 @@ Synapmc a mod extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 This requires Fabric and Fabric Api.  <br>
 Minecraft versions 1.21 - 26.2 <br>
 
-## Package Manager / Repositories
-
-Easily browse a selection of scripts, extensions, programs, and mods. <br>
-Filter scripts by server, version, and language. <br>
-
-Most creators don't use Synapmc, so they may not have a manifest. Just add their GitHub repo and Synapmc will attempt to auto generate one. <br>
-Creators can also include a Discord and donation link on their repos. <br>
-
-To access the Repository Dashboard (Package Manager) open `Jsmacros → Click Repository` in the bottom left.
-
 **⚠️This is still in development**<br> 
 * Functions are subject to change
-
 
 **Check Wiki for more info** <br>
 [Getting Started](../../wiki/Getting-Started) <br>
