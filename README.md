@@ -15,8 +15,6 @@ Synapmc a mod extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 | ✅ | JsMacros Reloaded Support `Minecraft versions 26.1 - 26.2`|
 | ✅ | Drag and drop to import scripts |
 | ✅ | Export/Sync registered scripts |
-| ✅ | Linux Support |
-
 
 ## Install as a mod not as an extension
 This requires Fabric and Fabric Api.  <br>
