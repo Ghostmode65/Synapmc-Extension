@@ -13,7 +13,7 @@ Synapmc a mod extension for [JsMacros](https://modrinth.com/mod/jsmacros).
 
 |  | Added |
 |---|---|
-| ✅ | JsMacros Community Edition Support `Minecraft versions 1.21.4 - 1.21.11`|
+| ✅ | JsMacros Community Edition Support `Minecraft versions 1.21.5 - 1.21.11`|
 | ✅ | JsMacros Reloaded Support `Minecraft versions 26.1 - 26.2`|
 
 
