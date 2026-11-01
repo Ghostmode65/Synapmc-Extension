@@ -1,4 +1,3 @@
-/** Add beside the upstream JsMacros declarations. Coordinates are scaled GUI pixels. */
 declare namespace Packages.com.synapmc {
     interface LoreWindow extends JavaObject {
         getX(): number;
@@ -13,7 +12,7 @@ declare namespace Packages.com.synapmc {
         getScaledHeight(): number;
         getParentWidth(): number;
         getParentHeight(): number;
-        /** Read-only target: positioning/alignment mutators throw UnsupportedOperationException. */
+
         moveTo(x: number, y: number): LoreWindow;
         moveToX(x: number): LoreWindow;
         moveToY(y: number): LoreWindow;
@@ -28,14 +27,25 @@ declare namespace Packages.com.synapmc {
     }
 }
 
-declare namespace Hud {
-    /** Full item tooltip with background padding, or null (nil in Lua) when absent/unsupported. */
-    function getLoreWindow(): Packages.com.synapmc.LoreWindow | null;
+declare namespace Events {
+    interface Tooltip extends BaseEvent {
+
+        readonly element: Packages.com.synapmc.LoreWindow;
+        getX(): number;
+        getY(): number;
+        getWidth(): number;
+        getHeight(): number;
+
+        draw(elementOrList: JavaObject | JavaObject[] | Packages.java.util.List<JavaObject>): void;
+        setOnInt(draw2d: JavaObject): void;
+        joinable(): true;
+    }
 }
 
-declare namespace Packages.xyz.wagyourtail.jsmacros.client.api.library.impl {
-    interface FHud { getLoreWindow(): Packages.com.synapmc.LoreWindow | null; }
+interface Events {
+    Tooltip: Events.Tooltip;
 }
-declare namespace Packages.com.jsmacrosce.jsmacros.client.api.library.impl {
-    interface FHud { getLoreWindow(): Packages.com.synapmc.LoreWindow | null; }
+
+declare namespace Packages.com.synapmc.event {
+    interface EventTooltip extends Events.Tooltip {}
 }

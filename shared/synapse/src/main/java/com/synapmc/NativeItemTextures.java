@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
-/** Runtime resource pack and normal Minecraft model selection for item-wide textures. */
+
 public final class NativeItemTextures {
     private static final ThreadLocal<Boolean> originals = ThreadLocal.withInitial(() -> false);
     private static boolean reloading;
@@ -20,7 +20,7 @@ public final class NativeItemTextures {
         Object key = field(type(reloaded() ? "net.minecraft.core.component.DataComponents" : "net.minecraft.class_9334"), named, intermediary);
         return call(stack, new String[] {"get", "method_58694"}, key);
     }
-    /** Redirects only the resolver's item-model component read; no stack/component data is modified. */
+
     public static Object modelComponent(Object stack, Object original) {
         if (original == null || !ItemTextureModels.hasActive() || originals.get()) return original;
         Object item = call(stack, new String[] {"getItem", "method_7909"});
@@ -38,7 +38,7 @@ public final class NativeItemTextures {
         Object id = construct("net.minecraft.class_1091", identifier(replacement), "inventory");
         return call(manager, new String[] {"method_4742"}, id);
     }
-    /** Register generated Legacy inventory models before the loader resolves textures and bakes. */
+
     public static void registerLegacyModels(Object loader) {
         try {
             var register = loader.getClass().getDeclaredMethod("method_61073", type("net.minecraft.class_1091"));
@@ -115,7 +115,7 @@ public final class NativeItemTextures {
         if (failure == null) ItemTextureModels.activate(snapshot);
         else SynapMcShared.error("[SynapMc] Item texture resource reload failed: " + failure);
         reloading = false;
-        // Coalesce requests received during a reload, then bake the newest snapshot once.
+
         if (ItemTextureModels.snapshot().revision() != snapshot.revision()) requestReload();
     }
 }

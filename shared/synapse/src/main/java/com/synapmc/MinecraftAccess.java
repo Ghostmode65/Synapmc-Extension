@@ -317,6 +317,66 @@ public final class MinecraftAccess {
         return openEditor(file, line, null);
     }
 
+    public static void showChatComponent(Object message) {
+        MacroScreenBridge.onClient(() -> {
+            try {
+                Object hud = field(client(), "gui", "inGameHud", "field_1705");
+                Object nestedHud = field(hud, "hud");
+                if (nestedHud != null) hud = nestedHud;
+                Object chat = invoke(hud, "getChat", "getChatHud", "method_1743");
+                if (chat == null) throw new IllegalStateException("Chat is unavailable");
+                for (String name : new String[] {"jsmacros_addMessageBypass", "addMessage", "method_1740"}) {
+                    for (Method method : chat.getClass().getMethods()) {
+                        if (method.getName().equals(name)
+                                && method.getParameterCount() == 1 && method.getParameterTypes()[0].isInstance(message)) {
+                            method.invoke(chat, message);
+                            return;
+                        }
+                    }
+                }
+                throw new NoSuchMethodException("Chat.addMessage");
+            } catch (Exception error) {
+                SynapMcShared.error("[SynapMc] Could not show error: " + error);
+            }
+        });
+    }
+
+    public static void copyToClipboard(String text) {
+        MacroScreenBridge.onClient(() -> {
+            try {
+                Object keyboard = field(client(), "keyboardHandler", "keyboard", "field_1774");
+                if (keyboard == null) throw new IllegalStateException("Keyboard is unavailable");
+                for (String name : new String[] {"setClipboard", "method_1455"}) {
+                    try { keyboard.getClass().getMethod(name, String.class).invoke(keyboard, text); return; }
+                    catch (NoSuchMethodException ignored) { }
+                }
+                throw new NoSuchMethodException("Keyboard.setClipboard");
+            } catch (Exception error) {
+                SynapMcShared.error("[SynapMc] Could not copy error: " + error);
+            }
+        });
+    }
+
+    public static void openFile(File file) {
+        MacroScreenBridge.onClient(() -> {
+            try {
+                Object platform = invokeStatic("net.minecraft.util.Util", "getPlatform");
+                if (platform == null) platform = invokeStatic("net.minecraft.Util", "getPlatform");
+                if (platform == null) platform = invokeStatic("net.minecraft.class_156", "method_668");
+                if (platform == null) throw new IllegalStateException("Desktop platform is unavailable");
+                for (Method method : platform.getClass().getMethods()) {
+                    if (method.getParameterCount() == 1 && method.getParameterTypes()[0] == File.class) {
+                        method.invoke(platform, file);
+                        return;
+                    }
+                }
+                throw new NoSuchMethodException("Platform.openFile");
+            } catch (Exception error) {
+                SynapMcShared.error("[SynapMc] Could not open file: " + error);
+            }
+        });
+    }
+
     public static boolean openEditor(File file, int line, Object parent) {
         for (String name : new String[] {
                 "com.jsmacrosce.jsmacros.client.gui.screens.EditorScreen",

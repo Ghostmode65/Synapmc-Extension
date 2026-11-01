@@ -8,7 +8,7 @@ import com.synapmc.SynapMcSettingsUi;
 import com.synapmc.LoreWindow;
 import com.synapmc.TooltipDrawQueue;
 import com.synapmc.TooltipEvents;
-import com.synapmc.event.EventRenderTooltip;
+import com.synapmc.event.EventTooltip;
 import com.synapmc.event.EventScoreboard;
 import com.synapmc.ScoreboardUpdate;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
@@ -30,8 +30,8 @@ import java.util.function.Consumer;
 public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public String getLanguageImplName() { return "synapmc"; }
     @Override public void init() {
-        // Older cores use a BaseEvent interface and cannot load the newer event subclass.
-        TooltipEvents.register(Core.getInstance().eventRegistry, BaseEvent.class.isInterface() ? null : EventRenderTooltip.class);
+
+        TooltipEvents.register(Core.getInstance().eventRegistry, BaseEvent.class.isInterface() ? null : EventTooltip.class);
         TooltipEvents.register(Core.getInstance().eventRegistry, "Scoreboard", BaseEvent.class.isInterface() ? null : EventScoreboard.class);
         SynapMcShared.init(this);
         try { Core.getInstance().config.addOptions("synapmc", SynapMcOptions.class); }
@@ -68,7 +68,7 @@ public final class SynapMcExtension implements Extension, ICoreAccess {
     @Override public Object getProfile() { return Core.getInstance().profile; }
     @Override public void triggerTooltipEvent(Object element, TooltipDrawQueue drawings) {
         Core<?, ?> core = Core.getInstance();
-        core.profile.triggerEvent(new EventRenderTooltip(core, (LoreWindow) element, drawings));
+        core.profile.triggerEvent(new EventTooltip(core, (LoreWindow) element, drawings));
     }
     @Override public void triggerScoreboardEvent(ScoreboardUpdate update) {
         Core<?, ?> core = Core.getInstance();

@@ -1,7 +1,7 @@
 package com.synapmc.mixin;
 
 import com.synapmc.LoreWindow;
-import com.synapmc.TooltipTracker;
+import com.synapmc.ItemTooltipContext;
 import com.synapmc.TooltipRenderSession;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -16,25 +16,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 @Mixin(targets = "net.minecraft.client.gui.GuiGraphicsExtractor", remap = false)
-public abstract class ItemTooltipMixin {
-    @Unique private boolean synapmc$itemTooltip;
+public abstract class ItemTooltipMixin implements ItemTooltipContext {
+    @Unique private int synapmc$itemTooltipDepth;
     @Unique private boolean synapmc$deferredItemTooltip;
     @Unique private boolean synapmc$renderingItemTooltip;
     @Unique private final Deque<TooltipRenderSession> synapmc$tooltipSessions = new ArrayDeque<>();
     @Shadow public abstract int guiWidth();
     @Shadow public abstract int guiHeight();
 
+    @Override @Unique public void synapmc$enterItemTooltip() { synapmc$itemTooltipDepth++; }
+    @Override @Unique public void synapmc$leaveItemTooltip() { synapmc$itemTooltipDepth--; }
+
     @Inject(method = "setTooltipForNextFrame(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;II)V",
         at = @At("HEAD"), require = 1)
-    private void synapmc$beginItemTooltip(CallbackInfo ci) { synapmc$itemTooltip = true; }
+    private void synapmc$beginItemTooltip(CallbackInfo ci) { synapmc$enterItemTooltip(); }
     @Inject(method = "setTooltipForNextFrame(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;II)V",
         at = @At("RETURN"), require = 1)
-    private void synapmc$endItemTooltip(CallbackInfo ci) { synapmc$itemTooltip = false; }
+    private void synapmc$endItemTooltip(CallbackInfo ci) { synapmc$leaveItemTooltip(); }
 
     @Inject(method = "setTooltipForNextFrameInternal", at = @At(value = "FIELD",
         target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;deferredTooltip:Ljava/lang/Runnable;",
         opcode = 181, shift = At.Shift.AFTER), require = 1)
-    private void synapmc$tagDeferredTooltip(CallbackInfo ci) { synapmc$deferredItemTooltip = synapmc$itemTooltip; }
+    private void synapmc$tagDeferredTooltip(CallbackInfo ci) { synapmc$deferredItemTooltip = synapmc$itemTooltipDepth > 0; }
 
     @Inject(method = "lambda$setTooltipForNextFrameInternal$0", at = @At("HEAD"), require = 1)
     private void synapmc$beginDeferredTooltip(CallbackInfo ci) { synapmc$renderingItemTooltip = synapmc$deferredItemTooltip; }
@@ -55,7 +58,6 @@ public abstract class ItemTooltipMixin {
         LoreWindow window = synapmc$renderingItemTooltip ? new LoreWindow(
             (int) args.get(1) - 3, (int) args.get(2) - 3,
             (int) args.get(3) + 6, (int) args.get(4) + 6, guiWidth(), guiHeight()) : null;
-        TooltipTracker.capture(window);
         if (window != null) synapmc$tooltipSessions.peek().begin(window);
     }
 }

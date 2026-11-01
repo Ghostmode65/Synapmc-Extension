@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
-/** Validate inputs before changing either stack or item-wide rendering. */
+
 final class TextureFiles {
     record Loaded(byte[] png, byte[] metadata, TextureAnimation animation) {}
     static Loaded load(Object pngFile, Object mcmetaFile) throws IOException {

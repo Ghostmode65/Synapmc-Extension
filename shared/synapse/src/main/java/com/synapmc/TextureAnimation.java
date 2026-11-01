@@ -6,7 +6,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
-/** PNG sprite-sheet frames, durations and optional interpolation from a Minecraft .mcmeta file. */
+
 public final class TextureAnimation {
     private record Frame(int index, int ticks) {}
     private final BufferedImage source;
@@ -47,7 +47,7 @@ public final class TextureAnimation {
 
     public BufferedImage createImage() { return new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB); }
 
-    /** Only uploads a new frame when pixels can have changed. A Minecraft tick is 50ms. */
+
     public synchronized boolean paint(BufferedImage destination, long elapsedNanos) {
         long tick = Math.max(0, elapsedNanos) / 50_000_000L;
         double fractionalTick = Math.max(0, elapsedNanos) % 50_000_000L / 50_000_000.0;

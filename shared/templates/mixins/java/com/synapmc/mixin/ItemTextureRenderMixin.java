@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-/** Replaces one JsMacros GUI item image while preserving native count/durability overlays. */
+
 @Mixin(targets = "@CORE_PACKAGE@.client.api.classes.render.components.Item", remap = false)
 public abstract class ItemTextureRenderMixin {
     @Redirect(method = "render(L@DRAW_CONTEXT_INTERNAL@;IIFZ)V", at = @At(value = "INVOKE",

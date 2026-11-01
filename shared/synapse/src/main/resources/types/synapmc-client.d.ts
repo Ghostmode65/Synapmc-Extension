@@ -1,4 +1,4 @@
-/** Add this file beside your JsMacros TypeScript declarations for editor autocomplete. */
+
 declare namespace Client {
     function getOS(): "windows" | "linux" | "mac" | "unknown";
     function jsVersion(): "legacy" | "community" | "reload";

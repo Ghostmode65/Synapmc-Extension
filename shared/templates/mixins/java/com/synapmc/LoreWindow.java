@@ -2,7 +2,7 @@ package com.synapmc;
 
 import @CORE_PACKAGE@.client.api.classes.render.components.Alignable;
 
-/** A read-only alignment target in scaled GUI pixels. Minecraft owns its position. */
+
 public final class LoreWindow implements Alignable<LoreWindow> {
     private final int x, y, width, height, parentWidth, parentHeight;
 

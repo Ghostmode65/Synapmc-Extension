@@ -6,6 +6,10 @@ import java.util.Map;
 import com.synapmc.SynapMcSettingsUi;
 
 public final class SynapMcOptions {
+    @Option(translationKey = "synapmc.settings.miniLogs", group = {"synapmc.settings"}, setter = "setMiniLogs")
+    public int getMiniLogs() { return (Integer) SynapMcSettingsUi.get("miniLogs"); }
+    public void setMiniLogs(int value) { SynapMcSettingsUi.set("miniLogs", value); }
+
     @Option(translationKey = "synapmc.settings.autorunEnabled", group = {"synapmc.settings"}, setter = "setAutorunEnabled")
     public boolean getAutorunEnabled() { return (Boolean) SynapMcSettingsUi.get("autorunEnabled"); }
     public void setAutorunEnabled(boolean value) { SynapMcSettingsUi.set("autorunEnabled", value); }

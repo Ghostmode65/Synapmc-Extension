@@ -11,7 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Portable registrations for the current profile and its services. Script paths are absolute. */
+
 public final class KeyBindingsTransfer {
     private KeyBindingsTransfer() {}
 
@@ -78,7 +78,7 @@ public final class KeyBindingsTransfer {
         return "Exported " + (archive.triggers.size() + archive.services.size()) + " registrations to " + destination + ".";
     }
 
-    /** Supports the File constructor in legacy and the Path constructor in newer editions. */
+
     public static Object serviceTrigger(File file, boolean enabled) throws Exception {
         String name = SynapMcShared.core.getScriptTriggerClassName();
         String corePackage = name.substring(0, name.lastIndexOf(".config."));
@@ -100,7 +100,7 @@ public final class KeyBindingsTransfer {
             throw new IOException("Unsupported registration archive");
         Class<?> triggerClass = Class.forName(SynapMcShared.core.getScriptTriggerClassName());
         Class<? extends Enum> typeClass = (Class<? extends Enum>) Class.forName(triggerClass.getName() + "$TriggerType");
-        // Validate the entire archive before adding any registrations.
+
         for (Registration row : archive.triggers) {
             validate(row);
             Enum.valueOf(typeClass, row.type);

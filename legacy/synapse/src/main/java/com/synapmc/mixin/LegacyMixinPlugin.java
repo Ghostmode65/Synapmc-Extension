@@ -7,7 +7,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
-/** Scoreboard and tooltip capture use the native 1.21/1.21.1 APIs. */
+
 public final class LegacyMixinPlugin implements IMixinConfigPlugin {
     public static boolean supportsScoreboardText(String minecraftVersion) {
         return "1.21".equals(minecraftVersion) || "1.21.1".equals(minecraftVersion);
@@ -15,7 +15,7 @@ public final class LegacyMixinPlugin implements IMixinConfigPlugin {
 
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (!mixinClassName.endsWith(".ScoreboardsMixin") && !mixinClassName.endsWith(".SidebarMixin") && !mixinClassName.endsWith(".ItemTooltipMixin")
-                && !mixinClassName.endsWith(".TooltipFrameMixin") && !mixinClassName.endsWith(".ItemStackTextureMixin")
+                && !mixinClassName.endsWith(".HandledScreenTooltipMixin") && !mixinClassName.endsWith(".ItemStackTextureMixin")
                 && !mixinClassName.endsWith(".ItemTextureRenderMixin") && !mixinClassName.endsWith(".ItemHelperTextureMixin")
                 && !mixinClassName.endsWith(".ItemTexturePackMixin") && !mixinClassName.endsWith(".LegacyItemTextureLoaderMixin")
                 && !mixinClassName.endsWith(".LegacyItemTextureModelMixin")) return true;

@@ -19,7 +19,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-/** Native model/resource access across the supported Minecraft editions. No JSON variant guessing. */
+
 public final class NativeTextureAccess implements ItemTextureBackend {
     public static final NativeTextureAccess INSTANCE = new NativeTextureAccess();
     private record RegisteredImage(Object custom, Object element) {}
@@ -88,7 +88,7 @@ public final class NativeTextureAccess implements ItemTextureBackend {
         if (png != null && resource(client, png) != null) ids.add(png);
     }
 
-    /** Atlas single/directory sources can give sprites names different from their PNG resource. */
+
     private static String atlasSource(Object client, String atlas, String spriteId) {
         String[] atlasParts = qualified(atlas).split(":", 2);
         String atlasPath = atlasParts[1];
@@ -194,7 +194,7 @@ public final class NativeTextureAccess implements ItemTextureBackend {
         boolean main = Boolean.TRUE.equals(call(client, new String[] {"isSameThread", "method_18854"}));
         Object profile = SynapMcShared.core == null ? null : SynapMcShared.core.getProfile();
         boolean joined = profile != null && Boolean.TRUE.equals(call(profile, new String[] {"checkJoinedThreadStack"}));
-        // During a joined event the main thread is paused, so scheduling back to it would deadlock.
+
         if (main || joined) return action.get();
         FutureTask<T> task = new FutureTask<>(action::get);
         call(client, new String[] {"execute"}, task);

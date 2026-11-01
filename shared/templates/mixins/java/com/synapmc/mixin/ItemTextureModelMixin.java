@@ -2,16 +2,19 @@ package com.synapmc.mixin;
 
 import com.synapmc.NativeItemTextures;
 import @STACK_TYPE@;
-import @COMPONENT_TYPE@;
+import @IDENTIFIER_TYPE@;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Coerce;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
 @Mixin(targets = "@ITEM_RESOLVER@", remap = false)
 public abstract class ItemTextureModelMixin {
-    @Redirect(method = "@APPEND_ITEM_LAYERS@", at = @At(value = "INVOKE",
-        target = "L@STACK_INTERNAL@;@STACK_COMPONENT@(L@COMPONENT_INTERNAL@;)Ljava/lang/Object;", remap = false), remap = false)
-    private Object synapmc$itemModel(@STACK_SIMPLE@ stack, @COMPONENT_SIMPLE@<?> component) {
-        return NativeItemTextures.modelComponent(stack, stack.@STACK_COMPONENT@(component));
+
+
+    @ModifyVariable(method = "@APPEND_ITEM_LAYERS@", at = @At("STORE"), ordinal = 0, require = 1, remap = false)
+    private @IDENTIFIER_SIMPLE@ synapmc$itemModel(@IDENTIFIER_SIMPLE@ model,
+            @Coerce Object renderState, @STACK_SIMPLE@ stack) {
+        return (@IDENTIFIER_SIMPLE@) NativeItemTextures.modelComponent(stack, model);
     }
 }

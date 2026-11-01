@@ -86,6 +86,7 @@ public final class FSynapse {
         values.put("autorunEnabled", cfg.autorunEnabled);
         values.put("silent", cfg.silent);
         values.put("chatSayEnabled", cfg.chatSayEnabled);
+        values.put("miniLogs", cfg.miniLogs);
         values.put("tcpPortEnabled", cfg.tcpPortEnabled);
         values.put("tcpPort", cfg.tcpPort);
         values.put("tcpPortPassword", cfg.tcpPortPassword);
@@ -107,6 +108,13 @@ public final class FSynapse {
         boolean refreshTcp = false;
         boolean refreshUnify = false;
         switch (settingName) {
+            case "miniLogs":
+                if (!(value instanceof Number)) return false;
+                double threshold = ((Number) value).doubleValue();
+                if (!Double.isFinite(threshold) || Math.rint(threshold) != threshold
+                        || threshold < 0 || threshold > Integer.MAX_VALUE) return false;
+                cfg.miniLogs = ((Number) value).intValue();
+                break;
             case "autorunEnabled":
                 if (!(value instanceof Boolean)) return false;
                 cfg.autorunEnabled = (Boolean) value;
@@ -196,6 +204,7 @@ public final class FSynapse {
     @SuppressWarnings("unchecked")
     private void restoreSetting(SynapMcConfig cfg, String name, Object previous) {
         switch (name) {
+            case "miniLogs": cfg.miniLogs = (Integer) previous; break;
             case "autorunEnabled": cfg.autorunEnabled = (Boolean) previous; break;
             case "silent": cfg.silent = (Boolean) previous; break;
             case "chatSayEnabled": cfg.chatSayEnabled = (Boolean) previous; break;

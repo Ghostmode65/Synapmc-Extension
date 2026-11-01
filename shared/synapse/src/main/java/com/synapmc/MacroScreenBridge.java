@@ -44,15 +44,15 @@ public final class MacroScreenBridge {
     }
 
     private static void inspect(Object client) {
-        Object screen = field(client, "screen", "field_1755");
-        if (!isMacroScreen(screen)) {
-            attachedScreen = null;
-            attachedButtons = Collections.emptyList();
-            return;
-        }
-        if (screen == attachedScreen && children(screen).containsAll(attachedButtons)
-                && !attachedButtons.isEmpty()) return;
         try {
+            Object screen = currentScreen(client);
+            if (!isMacroScreen(screen)) {
+                attachedScreen = null;
+                attachedButtons = Collections.emptyList();
+                return;
+            }
+            if (screen == attachedScreen && children(screen).containsAll(attachedButtons)
+                    && !attachedButtons.isEmpty()) return;
             int width = dimension(screen, "width", "field_22789");
             int height = dimension(screen, "height", "field_22790");
             if (width == 0 || height == 0) return;
@@ -62,11 +62,22 @@ public final class MacroScreenBridge {
                     "Repository", MacroScreenBridge::openRepoBrowser));
             buttons.add(addButton(screen, 0, height - 27, buttonWidth, 12,
                     "Import", () -> openImporter(screen)));
+            buttons.add(addButton(screen, 0, height - 57, buttonWidth, 12,
+                    "Snippets", () -> EditorSnippets.open(screen, null, null)));
             attachedScreen = screen;
             attachedButtons = buttons;
         } catch (Exception error) {
             SynapMcShared.error("[SynapMc] Could not add macro screen button: " + error);
         }
+    }
+
+    private static Object currentScreen(Object client) throws Exception {
+        Object gui = field(client, "gui");
+        if (gui != null) {
+            try { return gui.getClass().getMethod("screen").invoke(gui); }
+            catch (NoSuchMethodException ignored) { }
+        }
+        return field(client, "screen", "field_1755");
     }
 
     private static boolean isMacroScreen(Object screen) {
@@ -121,11 +132,14 @@ public final class MacroScreenBridge {
                 }
             }
             Object client = client();
-            for (Method method : client.getClass().getMethods()) {
-                if ((method.getName().equals("setScreen") || method.getName().equals("method_1507"))
-                        && method.getParameterCount() == 1 && method.getParameterTypes()[0].isInstance(screen)) {
-                    method.invoke(client, screen);
-                    return true;
+            for (Object owner : new Object[] {field(client, "gui"), client}) {
+                if (owner == null) continue;
+                for (Method method : owner.getClass().getMethods()) {
+                    if ((method.getName().equals("setScreen") || method.getName().equals("method_1507"))
+                            && method.getParameterCount() == 1 && method.getParameterTypes()[0].isInstance(screen)) {
+                        method.invoke(owner, screen);
+                        return true;
+                    }
                 }
             }
             throw new NoSuchMethodException("Minecraft setScreen");
@@ -163,8 +177,7 @@ public final class MacroScreenBridge {
 
     public static Object addButton(Object screen, int x, int y, int width, int height,
                                    String caption, Runnable action) throws Exception {
-        String prefix = screen.getClass().getName().startsWith("com.jsmacrosce.")
-                ? "com.jsmacrosce.wagyourgui" : "xyz.wagyourtail.wagyourgui";
+        String prefix = guiPrefix(screen);
         Class<?> buttonClass = Class.forName(prefix + ".elements.Button");
         Object font = field(screen, "font", "field_22793");
         if (font == null) throw new NoSuchFieldException("Minecraft font");
@@ -180,8 +193,7 @@ public final class MacroScreenBridge {
 
     public static Object addTextInput(Object screen, int x, int y, int width, int height,
                                       Consumer<String> onChange) throws Exception {
-        String prefix = screen.getClass().getName().startsWith("com.jsmacrosce.")
-                ? "com.jsmacrosce.wagyourgui" : "xyz.wagyourtail.wagyourgui";
+        String prefix = guiPrefix(screen);
         Object font = field(screen, "font", "field_22793");
         if (font == null) throw new NoSuchFieldException("Minecraft font");
         Class<?> inputClass = Class.forName(prefix + ".elements.TextInput");
@@ -194,15 +206,56 @@ public final class MacroScreenBridge {
         throw new NoSuchMethodException("JsMacros TextInput constructor");
     }
 
-    /** A normal accessible/clickable widget, rendered as left-aligned text only. */
-    public static Object addTextButton(Object screen, int x, int y, int width, int height,
-                                       String caption, Runnable action) throws Exception {
-        Object button = addButton(screen, x, y, width, height, caption, action);
-        for (String setter : new String[] {"setColor", "setBorderColor", "setHighlightColor"})
-            button.getClass().getMethod(setter, int.class).invoke(button, 0);
-        button.getClass().getField("horizCenter").setBoolean(button, false);
-        return button;
+    public static boolean hasOverlay(Object screen) { return field(screen, "overlay") != null; }
+
+    public static void choiceMenu(Object screen, int x, int y, List<String> labels, Consumer<Integer> choice) throws Exception {
+        int menuWidth = 92;
+        int menuHeight = labels.size() * 12 + 4;
+        x = Math.max(2, Math.min(x, dimension(screen, "width", "field_22789") - menuWidth - 2));
+        y = Math.max(2, Math.min(y, dimension(screen, "height", "field_22790") - menuHeight - 2));
+        List<Object> text = new ArrayList<>();
+        for (String label : labels) text.add(literal(label));
+        openOverlay(screen, "SelectorDropdownOverlay", x, y, menuWidth, menuHeight,
+                text, field(screen, "font", "field_22793"), screen, choice);
     }
+
+    public static void textPrompt(Object screen, String message, String initial, Consumer<String> accept) throws Exception {
+        int w = Math.min(240, dimension(screen, "width", "field_22789") - 16);
+        int h = Math.min(100, dimension(screen, "height", "field_22790") - 16);
+        openOverlay(screen, "TextPrompt", (dimension(screen, "width", "field_22789") - w) / 2,
+                (dimension(screen, "height", "field_22790") - h) / 2, w, h,
+                field(screen, "font", "field_22793"), literal(message), initial, screen, accept);
+    }
+
+    public static void confirm(Object screen, String message, Runnable accept) throws Exception {
+        int w = Math.min(240, dimension(screen, "width", "field_22789") - 16);
+        int h = Math.min(100, dimension(screen, "height", "field_22790") - 16);
+        openOverlay(screen, "ConfirmOverlay", (dimension(screen, "width", "field_22789") - w) / 2,
+                (dimension(screen, "height", "field_22790") - h) / 2, w, h,
+                field(screen, "font", "field_22793"), literal(message), screen, (Consumer<Object>) ignored -> accept.run());
+    }
+
+    private static void openOverlay(Object screen, String name, Object... args) throws Exception {
+        Class<?> type = Class.forName(guiPrefix(screen) + ".overlays." + name);
+        for (Constructor<?> constructor : type.getConstructors()) {
+            if (constructor.getParameterCount() != args.length) continue;
+            Object overlay = constructor.newInstance(args);
+            for (Method method : screen.getClass().getMethods())
+                if (method.getName().equals("openOverlay") && method.getParameterCount() == 1
+                        && method.getParameterTypes()[0].isInstance(overlay)) {
+                    method.invoke(screen, overlay);
+                    return;
+                }
+        }
+        throw new NoSuchMethodException("JsMacros " + name + " overlay");
+    }
+
+    private static String guiPrefix(Object screen) {
+        for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass())
+            if (type.getName().startsWith("com.jsmacrosce.")) return "com.jsmacrosce.wagyourgui";
+        return "xyz.wagyourtail.wagyourgui";
+    }
+
 
     public static String inputValue(Object input) {
         try { return (String) input.getClass().getField("content").get(input); }
@@ -247,6 +300,11 @@ public final class MacroScreenBridge {
         }
     }
 
+    public static void blurInput(Object input) {
+        try { input.getClass().getMethod("setSelected", boolean.class).invoke(input, false); }
+        catch (ReflectiveOperationException error) { SynapMcShared.error("[SynapMc] Could not unfocus input: " + error); }
+    }
+
     public static void textColor(Object widget, int color) {
         if (widget == null) return;
         try { widget.getClass().getMethod("setTextColor", int.class).invoke(widget, color); }
@@ -288,19 +346,21 @@ public final class MacroScreenBridge {
         } catch (Exception ignored) { }
     }
 
+    public static int textWidth(Object screen, String value) {
+        Object font = field(screen, "font", "field_22793");
+        if (font != null) for (String methodName : new String[] {"width", "method_1727"}) {
+            try { return ((Number) font.getClass().getMethod(methodName, String.class).invoke(font, value)).intValue(); }
+            catch (ReflectiveOperationException ignored) { }
+        }
+        return value.length() * 6;
+    }
+
     public static void drawText(Object context, Object screen, String value, int x, int y, int color) {
         if (context == null || screen == null) return;
         try {
             Object font = field(screen, "font", "field_22793");
             Object label = literal(value);
-            int width = value.length() * 6;
-            for (String methodName : new String[] {"width", "method_1727"}) {
-                try {
-                    Object measured = font.getClass().getMethod(methodName, String.class).invoke(font, value);
-                    if (measured instanceof Number) width = ((Number) measured).intValue();
-                    break;
-                } catch (NoSuchMethodException ignored) { }
-            }
+            int width = textWidth(screen, value);
             for (Method method : context.getClass().getMethods()) {
                 if ((method.getName().equals("centeredText") || method.getName().equals("method_27534"))
                         && method.getParameterCount() == 5

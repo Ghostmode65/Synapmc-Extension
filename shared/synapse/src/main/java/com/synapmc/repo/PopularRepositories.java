@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** A discovery feed, separate from repositories containing installed scripts. */
+
 public final class PopularRepositories {
     private PopularRepositories() {}
 

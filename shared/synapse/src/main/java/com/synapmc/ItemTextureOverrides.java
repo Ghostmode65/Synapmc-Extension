@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/** Weak identity bindings: an override follows one copied stack, never every stack of an item type. */
+
 public final class ItemTextureOverrides {
     private static final ReferenceQueue<Object> collected = new ReferenceQueue<>();
     private static final Map<Key, Replacement> replacements = new HashMap<>();
@@ -32,7 +32,7 @@ public final class ItemTextureOverrides {
         if (old != null) retired.add(old);
     }
 
-    /** Invoked by the JsMacros Item mixin on the real rendering thread. */
+
     public static boolean draw(Object context, Object stack, int x, int y) {
         Replacement replacement;
         synchronized (ItemTextureOverrides.class) {

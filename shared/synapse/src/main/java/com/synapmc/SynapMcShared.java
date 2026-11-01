@@ -30,7 +30,7 @@ public final class SynapMcShared {
         config = SynapMcConfig.load(roamingDir);
 
         for (String directory : new String[] {
-                "config", "assets/images", "assets/sounds", "scripts/library",
+                "config", "assets/images", "assets/sounds", "scripts/library", "scripts/snippets",
                 "scripts/auto-execute", "scripts/macros", "scripts/projects", "downloads"
         }) {
             new File(roamingDir, directory).mkdirs();
@@ -211,7 +211,7 @@ public final class SynapMcShared {
                     if (current.equals(target)) continue;
                     Files.delete(junction);
                 } else if (Files.exists(junction, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
-                    // Preserve ordinary folders; only replace links managed by SynapMc.
+
                     continue;
                 }
                 Files.createDirectories(macroRoot);

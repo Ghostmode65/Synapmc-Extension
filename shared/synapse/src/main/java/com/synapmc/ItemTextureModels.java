@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/** Isolated resource models: the original models/PNGs remain available to custom-model items. */
+
 public final class ItemTextureModels {
     public record Replacement(String model, String originalModel, Map<String, byte[]> assets) {
         public Replacement { assets = Map.copyOf(assets); }
@@ -103,7 +103,7 @@ public final class ItemTextureModels {
                     entry.setValue(new JsonPrimitive(texture)); replaced = true;
                 }
             }
-            // Preserve original custom-model branches; clone ordinary damage/use variants.
+
             if (json.has("overrides")) for (var value : json.getAsJsonArray("overrides")) {
                 JsonObject override = value.getAsJsonObject();
                 JsonObject predicate = override.has("predicate") ? override.getAsJsonObject("predicate") : new JsonObject();

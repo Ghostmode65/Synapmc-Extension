@@ -3,7 +3,7 @@ package com.synapmc;
 import @CORE_PACKAGE@.client.api.classes.render.components.RenderElement;
 import @DRAW_CONTEXT@;
 
-/** One native tooltip invocation, including its callback and drawing phase. */
+
 public final class TooltipRenderSession {
     private final @DRAW_CONTEXT_SIMPLE@ context;
     private final int mouseX, mouseY;
@@ -21,7 +21,7 @@ public final class TooltipRenderSession {
         ICoreAccess core = SynapMcShared.core;
         if (core == null) return;
         try { core.triggerTooltipEvent(window, drawings); }
-        catch (Throwable error) { SynapMcShared.error("[SynapMc] renderTooltip callback failed: " + error); }
+        catch (Throwable error) { SynapMcShared.error("[SynapMc] Tooltip callback failed: " + error); }
     }
 
     public void finish() {

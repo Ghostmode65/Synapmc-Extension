@@ -6,8 +6,10 @@ import @CORE_PACKAGE@.core.event.BaseEvent;
 import @CORE_PACKAGE@.core.event.Event;
 import @CORE_PACKAGE@.client.api.@HELPER_PACKAGE@.TextHelper;
 import @TEXT_TYPE@;
+import java.util.ArrayList;
+import java.util.List;
 
-/** Fired when the visible sidebar changes, before Minecraft measures and draws it. */
+
 @Event(value = "Scoreboard", cancellable = true@EVENT_JOINABLE@)
 public final class EventScoreboard extends BaseEvent {
     private final ScoreboardUpdate update;
@@ -19,11 +21,20 @@ public final class EventScoreboard extends BaseEvent {
 
     @Override public boolean joinable() { return true; }
     public void cancel(Object lineOrList) { update.cancel(lineOrList); }
-    /** Enables sequential Lua tables to coerce to a Java array. */
+
     public void cancel(Object[] lines) { update.cancel(lines); }
     public TextHelper getText(int line) {
         @TEXT_SIMPLE@ text = (@TEXT_SIMPLE@) update.getText(line);
         return text == null ? null : TextHelper.wrap(text.@TEXT_COPY@());
+    }
+
+    public List<TextHelper> getLines() {
+        List<TextHelper> result = new ArrayList<>();
+        for (Object value : update.getLines()) {
+            @TEXT_SIMPLE@ text = (@TEXT_SIMPLE@) value;
+            result.add(TextHelper.wrap(text.@TEXT_COPY@()));
+        }
+        return result;
     }
     public void setText(int line, Object value) {
         update.setText(line, text(value));

@@ -18,6 +18,7 @@ public final class SynapMcSettingsUi {
             case "autorunEnabled": return config.autorunEnabled;
             case "silent": return config.silent;
             case "chatSayEnabled": return config.chatSayEnabled;
+            case "miniLogs": return config.miniLogs;
             case "tcpPortEnabled": return config.tcpPortEnabled;
             case "tcpPort": return config.tcpPort;
             case "tcpPortPassword": return config.tcpPortPassword;
@@ -30,7 +31,7 @@ public final class SynapMcSettingsUi {
         }
     }
 
-    /** JsMacros' map editor mutates the getter result instead of calling a setter. */
+
     public static Map<String, String> unifiedFolders() {
         return new AbstractMap<String, String>() {
             private Map<String, String> snapshot() {
@@ -72,6 +73,7 @@ public final class SynapMcSettingsUi {
         names.put("synapmc.settings.autorunEnabled", "Auto-execute");
         names.put("synapmc.settings.silent", "Silence Logs");
         names.put("synapmc.settings.chatSayEnabled", "Chat Say");
+        names.put("synapmc.settings.miniLogs", "Mini Logs");
         names.put("synapmc.settings.tcpPortEnabled", "Enable TCP bridge");
         names.put("synapmc.settings.tcpPort", "Port");
         names.put("synapmc.settings.tcpPortPassword", "Password");

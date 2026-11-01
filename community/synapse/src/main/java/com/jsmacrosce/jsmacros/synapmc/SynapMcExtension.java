@@ -14,7 +14,7 @@ import com.synapmc.SynapMcSettingsUi;
 import com.synapmc.LoreWindow;
 import com.synapmc.TooltipDrawQueue;
 import com.synapmc.TooltipEvents;
-import com.synapmc.event.EventRenderTooltip;
+import com.synapmc.event.EventTooltip;
 import com.synapmc.event.EventScoreboard;
 import com.synapmc.ScoreboardUpdate;
 
@@ -31,7 +31,7 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     @Override public String getExtensionName() { return "synapmc"; }
     @Override public void init(Core<?, ?> core) {
         this.core = core;
-        TooltipEvents.register(core.eventRegistry, EventRenderTooltip.class);
+        TooltipEvents.register(core.eventRegistry, EventTooltip.class);
         TooltipEvents.register(core.eventRegistry, "Scoreboard", EventScoreboard.class);
         SynapMcShared.init(this);
         try { core.config.addOptions("synapmc", SynapMcOptions.class); }
@@ -57,7 +57,7 @@ public final class SynapMcExtension implements Extension, LibraryExtension, ICor
     @Override public String getScriptTriggerClassName() { return "com.jsmacrosce.jsmacros.core.config.ScriptTrigger"; }
     @Override public Object getProfile() { return core.profile; }
     @Override public void triggerTooltipEvent(Object element, TooltipDrawQueue drawings) {
-        core.profile.triggerEvent(new EventRenderTooltip(core, (LoreWindow) element, drawings));
+        core.profile.triggerEvent(new EventTooltip(core, (LoreWindow) element, drawings));
     }
     @Override public void triggerScoreboardEvent(ScoreboardUpdate update) {
         EventScoreboard event = new EventScoreboard(core, update);

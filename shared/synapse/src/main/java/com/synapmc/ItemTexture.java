@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/** Replaces an item type's main model texture in native rendering, excluding custom-model stacks. */
+
 public final class ItemTexture {
     private final Object item;
     private final ItemTextureBackend backend;

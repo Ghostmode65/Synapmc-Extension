@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.function.IntFunction;
 import @TEXT_TYPE@;
 
-/** Adapts Minecraft's private, immutable sidebar display records without modifying server data. */
+
 public final class SidebarRenderSession {
     private final ScoreboardUpdates updates = new ScoreboardUpdates();
     private Constructor<?> constructor;
@@ -21,7 +21,7 @@ public final class SidebarRenderSession {
         try {
             Class<?> rowType = entries.getClass().getComponentType();
             if (constructor == null) {
-                // The record is private in all supported Minecraft releases. Cache its accessors once.
+
                 constructor = rowType.getDeclaredConstructor(@TEXT_SIMPLE@.class, @TEXT_SIMPLE@.class, int.class);
                 name = rowType.getDeclaredMethod("@ROW_NAME@");
                 score = rowType.getDeclaredMethod("@ROW_SCORE@");

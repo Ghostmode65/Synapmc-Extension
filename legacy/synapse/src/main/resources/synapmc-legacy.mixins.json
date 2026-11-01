@@ -6,18 +6,20 @@
   "compatibilityLevel": "JAVA_17",
   "client": [
     "ClientMixin",
-    "HudMixin",
     "ScoreboardsMixin",
     "SidebarMixin",
     "ItemStackTextureMixin",
     "ItemTextureRenderMixin",
     "ItemTooltipMixin",
-    "TooltipFrameMixin",
-    "TooltipScreenMixin",
+    "HandledScreenTooltipMixin",
     "ItemHelperTextureMixin",
     "ItemTexturePackMixin",
     "LegacyItemTextureLoaderMixin",
     "LegacyItemTextureModelMixin",
-    "ChatMixin"
+    "ChatMixin",
+    "ErrorLogMixin",
+    "LegacyQueuedChatMixin",
+    "EditorColorMixin",
+    "LegacyModernEditorColorMixin"
   ]
 }

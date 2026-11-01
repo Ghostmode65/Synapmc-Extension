@@ -17,9 +17,10 @@ public final class ScriptDropUi {
     private final Map<String, String> nameOverrides = new LinkedHashMap<String, String>();
     private final Map<String, String> sourceFolders = new LinkedHashMap<>();
     private String destination = "global/imported/";
-    private Object destinationButton;
     private Object destinationInput;
     private boolean editingDestination;
+    private int destinationInputX;
+    private int destinationInputWidth;
     private String editingSource;
     private boolean attempted;
     private Object registerButton;
@@ -33,6 +34,7 @@ public final class ScriptDropUi {
     public ScriptDropUi(Object screen) { this.screen = screen; }
 
     public void init() {
+        finishDestination();
         text.clear();
         int width = MacroScreenBridge.dimension(screen, "width", "field_22789");
         int height = MacroScreenBridge.dimension(screen, "height", "field_22790");
@@ -40,6 +42,14 @@ public final class ScriptDropUi {
         visibleRows = Math.max(1, (height - 116) / 20);
         int slot = Math.max(54, (width - 16) / 4);
         try {
+            Object pencil = MacroScreenBridge.addButton(screen, 8, 42, 8, 12, "", this::toggleDestination);
+            MacroScreenBridge.setTooltip(pencil, "Edit import destination");
+            destinationInputX = 20 + MacroScreenBridge.textWidth(screen, "Destination: global/");
+            destinationInputWidth = Math.max(24, width - destinationInputX - 8);
+            destinationInput = MacroScreenBridge.addTextInput(screen, destinationInputX, 40,
+                    destinationInputWidth, 18, value -> { });
+            MacroScreenBridge.inputText(destinationInput, destination.substring("global/".length()));
+            MacroScreenBridge.visible(destinationInput, editingDestination);
             MacroScreenBridge.addButton(screen, 8, buttonY, slot - 4, 20, "Choose files", this::choose);
             MacroScreenBridge.addButton(screen, 8 + slot, buttonY, slot - 4, 20, "Import", () -> submit(true));
             MacroScreenBridge.addButton(screen, 8 + 2 * slot, buttonY, slot - 4, 20, "Execute", () -> submit(false));
@@ -57,20 +67,12 @@ public final class ScriptDropUi {
                 status = "Selection cleared.";
                 refresh();
             });
-            int backX = 8 + 3 * slot;
-            MacroScreenBridge.addButton(screen, backX - slot, height - 51, slot - 4, 18, "Export Keys", () -> transferKeys(true));
-            destinationButton = MacroScreenBridge.addTextButton(screen, 8, 40, Math.max(120, width - 16), 18,
-                    "Destination: " + destination, () -> {
-                        if (busy) return;
-                        finishEditing();
-                        editingDestination = true;
-                        MacroScreenBridge.inputText(destinationInput, destination);
-                        refresh();
-                        MacroScreenBridge.focusInput(screen, destinationInput);
-                    });
-            destinationInput = MacroScreenBridge.addTextInput(screen, 8, 40, Math.max(120, width - 16), 18,
-                    value -> { if (editingDestination) destination = value; });
-            MacroScreenBridge.addButton(screen, backX, height - 51, slot - 4, 18, "Import Keys", () -> transferKeys(false));
+            int keyWidth = Math.min(80, slot - 4);
+            int importKeysX = width - 8 - keyWidth;
+            MacroScreenBridge.addButton(screen, importKeysX - keyWidth - 4, height - 51, keyWidth, 18,
+                    "Export Keys", () -> transferKeys(true));
+            MacroScreenBridge.addButton(screen, importKeysX, height - 51, keyWidth, 18,
+                    "Import Keys", () -> transferKeys(false));
             registerKind = MacroScreenBridge.importerContext(screen);
             if ("key".equals(registerKind) || "event".equals(registerKind) || "service".equals(registerKind)) {
                 int registerWidth = Math.min(132, slot - 4);
@@ -118,6 +120,7 @@ public final class ScriptDropUi {
             SynapMcShared.error("[SynapMc] Could not initialize script screen: " + error);
         }
         refresh();
+        if (editingDestination) MacroScreenBridge.focusInput(screen, destinationInput);
     }
 
     public void drop(List<Path> paths) {
@@ -174,8 +177,46 @@ public final class ScriptDropUi {
     }
 
     public boolean keyPressed(int key) {
-        if ((key == 257 || key == 335) && (editingSource != null || editingDestination)) { finishEditing(); return true; }
+        if ((key == 257 || key == 335) && editingDestination) { finishDestination(); return true; }
+        if ((key == 257 || key == 335) && editingSource != null) { finishEditing(); return true; }
         return false;
+    }
+
+    public void mouseClicked(double x, double y) {
+        boolean pencil = x >= 8 && x < 16 && y >= 42 && y < 54;
+        boolean input = x >= destinationInputX && x < destinationInputX + destinationInputWidth
+                && y >= 40 && y < 58;
+        if (editingDestination && !pencil && !input) finishDestination();
+    }
+
+    public void afterMouseClick() {
+        // Native screens focus the clicked button after its action opens the input.
+        if (editingDestination) MacroScreenBridge.focusInput(screen, destinationInput);
+    }
+
+    private void toggleDestination() {
+        if (busy) return;
+        if (editingDestination) { finishDestination(); return; }
+        finishEditing();
+        MacroScreenBridge.inputText(destinationInput, destination.substring("global/".length()));
+        editingDestination = true;
+        refresh();
+        MacroScreenBridge.focusInput(screen, destinationInput);
+    }
+
+    private void finishDestination() {
+        if (!editingDestination) return;
+        String candidate = "global/" + MacroScreenBridge.inputValue(destinationInput).replace('\\', '/').trim();
+        try {
+            ScriptDropService.destinationRoot(candidate);
+            destination = candidate;
+        } catch (IllegalArgumentException error) {
+            status = error.getMessage();
+        }
+        editingDestination = false;
+        MacroScreenBridge.blurInput(destinationInput);
+        MacroScreenBridge.visible(destinationInput, false);
+        refresh();
     }
 
     private void finishEditing() {
@@ -184,16 +225,12 @@ public final class ScriptDropUi {
                 nameOverrides.put(editingSource, MacroScreenBridge.inputValue(controls.rename));
         }
         editingSource = null;
-        if (editingDestination) {
-            destination = MacroScreenBridge.inputValue(destinationInput).replace('\\', '/').trim();
-            if (!destination.equals("global") && !destination.startsWith("global/")) destination = "global/" + destination;
-            editingDestination = false;
-        }
         refresh();
     }
 
     private void submit(boolean importing) {
         if (busy) return;
+        finishDestination();
         finishEditing();
         attempted = true;
         List<ScriptDropService.Entry> entries = preview();
@@ -260,6 +297,7 @@ public final class ScriptDropUi {
 
     private void transferKeys(boolean exporting) {
         if (busy) return;
+        finishDestination();
         busy = true;
         status = exporting ? "Exporting registrations..." : "Importing registrations...";
         refresh();
@@ -307,8 +345,8 @@ public final class ScriptDropUi {
         int height = MacroScreenBridge.dimension(screen, "height", "field_22790");
         if (width == 0 || height == 0) return;
         if (!status.isEmpty()) line(status, 8, 28, 0xFFFFFFFF);
-        MacroScreenBridge.caption(destinationButton, "Destination: " + destination);
-        MacroScreenBridge.visible(destinationButton, !editingDestination);
+        line("✎", 8, 44, 0xFFFFFFFF);
+        line("Destination: " + (editingDestination ? "global/" : destination), 20, 44, 0xFFFFFFFF);
         MacroScreenBridge.visible(destinationInput, editingDestination);
         for (RowControls controls : rowControls) {
             controls.entry = null;
@@ -371,9 +409,10 @@ public final class ScriptDropUi {
 
     private void toggleRename(RowControls controls) {
         if (busy || controls.entry == null) return;
+        finishDestination();
         String key = sourceKey(controls.entry);
         if (key.equals(editingSource)) { finishEditing(); return; }
-        if (editingSource != null || editingDestination) finishEditing();
+        if (editingSource != null) finishEditing();
         editingSource = key;
         refresh();
         if (editingSource != null) MacroScreenBridge.focusInput(screen, controls.rename);
@@ -400,7 +439,7 @@ public final class ScriptDropUi {
     }
 
     public void render(Object context) {
-        if (editingDestination && !MacroScreenBridge.inputFocused(destinationInput)) finishEditing();
+        if (editingDestination && !MacroScreenBridge.inputFocused(destinationInput)) finishDestination();
         if (editingSource != null) for (RowControls controls : rowControls) {
             if (controls.entry != null && sourceKey(controls.entry).equals(editingSource)
                     && !MacroScreenBridge.inputFocused(controls.rename)) { finishEditing(); break; }

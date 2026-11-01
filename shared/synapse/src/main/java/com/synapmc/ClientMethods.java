@@ -2,7 +2,7 @@ package com.synapmc;
 
 import java.util.Locale;
 
-/** Implementation shared by the Client mixins for each edition. */
+
 public final class ClientMethods {
     private ClientMethods() {}
 

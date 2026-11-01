@@ -5,16 +5,17 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "ClientMixin",
-    "HudMixin",
     "SidebarMixin",
+    "SidebarEventMixin",
     "ItemStackTextureMixin",
     "ItemTextureRenderMixin",
     "ItemTooltipMixin",
-    "TooltipFrameMixin",
-    "TooltipScreenMixin",
+    "HandledScreenTooltipMixin",
     "ItemHelperTextureMixin",
     "ItemTexturePackMixin",
     "ItemTextureModelMixin",
-    "ChatMixin"
+    "ChatMixin",
+    "ErrorLogMixin",
+    "EditorColorMixin"
   ]
 }

@@ -24,6 +24,12 @@ public final class ScriptDropScreen extends ScriptScreen implements ScriptDropUi
     }
 
     @Override public void onFilesDrop(List<Path> paths) { ui.drop(paths); }
+    @Override public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        ui.mouseClicked(event.x(), event.y());
+        boolean handled = super.mouseClicked(event, doubleClick);
+        ui.afterMouseClick();
+        return handled;
+    }
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
         if (vertical != 0) { ui.scroll(vertical); return true; }
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);

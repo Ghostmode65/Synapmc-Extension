@@ -15,6 +15,12 @@ public final class ScriptDropScreenModern extends ScriptScreen implements Script
     }
     @Override protected void method_25426() { super.method_25426(); ui.init(); }
     @Override public void method_29638(List<Path> paths) { ui.drop(paths); }
+    @Override public boolean method_25402(double mouseX, double mouseY, int button) {
+        ui.mouseClicked(mouseX, mouseY);
+        boolean handled = super.method_25402(mouseX, mouseY, button);
+        ui.afterMouseClick();
+        return handled;
+    }
     @Override public boolean method_25401(double mouseX, double mouseY, double horizontal, double vertical) {
         if (vertical != 0) { ui.scroll(vertical); return true; }
         return super.method_25401(mouseX, mouseY, horizontal, vertical);

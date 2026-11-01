@@ -18,6 +18,7 @@ public final class SynapMcConfig {
     public boolean autorunEnabled = true;
     public boolean silent = false;
     public volatile boolean chatSayEnabled = true;
+    public volatile int miniLogs = 10;
     public boolean creatorMode = false;
     public boolean tcpPortEnabled = false;
     public int tcpPort = 8765;
@@ -97,6 +98,7 @@ public final class SynapMcConfig {
     }
 
     private void normalize() {
+        if (miniLogs < 0) miniLogs = 10;
         if (tcpPort < 1 || tcpPort > 65535) tcpPort = 8765;
         if (tcpPortPassword == null) tcpPortPassword = "";
         if (tcpBindAddress == null) tcpBindAddress = "";
@@ -112,7 +114,7 @@ public final class SynapMcConfig {
         unifyFolders.putIfAbsent("global", "scripts/macros");
         if (tags == null) tags = new LinkedHashMap<String, String>();
         if (repos == null) repos = new LinkedHashMap<String, String>();
-        // Seed existing installations once, while preserving later removals.
+
         if (!defaultReposInitialized) {
             if (!repos.containsValue(com.synapmc.repo.RepositoryDefaults.DEFAULT_MANIFEST)) {
                 String name = com.synapmc.repo.RepositoryDefaults.DEFAULT_NAME;

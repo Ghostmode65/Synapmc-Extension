@@ -12,7 +12,7 @@ import xyz.wagyourtail.jsmacros.client.api.helpers.TextHelper;
 import xyz.wagyourtail.jsmacros.client.api.helpers.screen.ScoreboardObjectiveHelper;
 import xyz.wagyourtail.jsmacros.core.helpers.BaseHelper;
 
-/** Native 1.21/1.21.1 sidebar text access; getObjectiveSlot remains untouched. */
+
 @Mixin(targets = "xyz.wagyourtail.jsmacros.client.api.helpers.world.ScoreboardsHelper", remap = false)
 public abstract class ScoreboardsMixin extends BaseHelper<class_269> {
     protected ScoreboardsMixin(class_269 board) { super(board); }

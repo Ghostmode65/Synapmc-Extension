@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 
-/** One sidebar update. Mutations are accepted only while joined listeners are running. */
+
 public final class ScoreboardUpdate {
     public record Row(Object text, Object nativeEntry) {}
     public record Snapshot(Object title, List<Row> rows) {
@@ -27,6 +27,14 @@ public final class ScoreboardUpdate {
     public synchronized Object getText(int line) {
         checkLine(line);
         return line == 0 ? title : rows[line - 1] == null ? null : rows[line - 1].text();
+    }
+
+
+    public synchronized List<Object> getLines() {
+        List<Object> result = new ArrayList<>();
+        if (title != null) result.add(title);
+        for (Row row : rows) if (row != null) result.add(row.text());
+        return result;
     }
 
     public synchronized void setText(int line, Object text) {
@@ -59,7 +67,7 @@ public final class ScoreboardUpdate {
         rows[14] = null;
     }
 
-    /** null means all lines; a number, array, or Iterable selects individual lines. */
+
     public synchronized void cancel(Object lines) {
         requireOpen();
         List<Integer> selected = new ArrayList<>();
@@ -67,7 +75,7 @@ public final class ScoreboardUpdate {
         else if (lines instanceof Iterable<?> list) for (Object line : list) selected.add(number(line));
         else if (lines instanceof Object[] list) for (Object line : list) selected.add(number(line));
         else selected.add(number(lines));
-        // Validate the entire selection before changing any line.
+
         for (int line : selected) checkLine(line);
         for (int line : selected) {
             if (line == 0) title = previous == null ? null : previous.title();

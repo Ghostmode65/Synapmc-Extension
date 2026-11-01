@@ -4,7 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 
-/** Minecraft operations separated from texture asset and animation handling. */
+
 public interface TextureBackend {
     List<String> identifiers(Object stack);
     byte[] readAsset(String identifier) throws IOException;

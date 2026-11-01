@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Item texture discovery/export, with an optional private replacement for JsMacros GUI items. */
+
 public final class ItemStackTexture {
     private final Supplier<Object> stack;
     private final Consumer<Object> detach;
@@ -24,7 +24,7 @@ public final class ItemStackTexture {
         this.stack = stack; this.detach = detach; this.backend = backend;
     }
 
-    /** Distinct active PNG resource identifiers; particle sprites and inactive variants are excluded. */
+
     public List<String> getIdentifiers() { return List.copyOf(new LinkedHashSet<>(backend.identifiers(stack.get()))); }
 
     public List<File> export() throws IOException {
@@ -70,7 +70,7 @@ public final class ItemStackTexture {
             throw new IOException("Invalid texture resource identifier: " + identifier);
         Path destination = root.toAbsolutePath().normalize().resolve(id[0]).resolve(id[1]).normalize();
         if (!destination.startsWith(root.toAbsolutePath().normalize())) throw new IOException("Texture export leaves its asset directory");
-        // Reject existing links, including the output file, before creating or overwriting assets.
+
         for (Path ancestor = destination; ancestor != null; ancestor = ancestor.getParent())
             if (Files.isSymbolicLink(ancestor)) throw new IOException("Texture export path contains a symbolic link: " + ancestor);
         Files.createDirectories(destination.getParent());

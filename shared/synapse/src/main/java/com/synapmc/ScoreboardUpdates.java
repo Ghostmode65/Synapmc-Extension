@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-/** Tracks incoming and displayed values separately, so canceled updates stay canceled across frames. */
+
 public final class ScoreboardUpdates {
     private Object objective;
     private ScoreboardUpdate.Snapshot incoming;
