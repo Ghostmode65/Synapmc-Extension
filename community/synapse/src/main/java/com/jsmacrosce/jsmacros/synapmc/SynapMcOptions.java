@@ -6,6 +6,10 @@ import java.util.Map;
 import com.synapmc.SynapMcSettingsUi;
 
 public final class SynapMcOptions {
+    @Option(translationKey = "synapmc.settings.scriptHistory", group = {"synapmc.settings"}, setter = "setScriptHistory")
+    public boolean getScriptHistory() { return (Boolean) SynapMcSettingsUi.get("scriptHistory"); }
+    public void setScriptHistory(boolean value) { SynapMcSettingsUi.set("scriptHistory", value); }
+
     @Option(translationKey = "synapmc.settings.miniLogs", group = {"synapmc.settings"}, setter = "setMiniLogs")
     public int getMiniLogs() { return (Integer) SynapMcSettingsUi.get("miniLogs"); }
     public void setMiniLogs(int value) { SynapMcSettingsUi.set("miniLogs", value); }

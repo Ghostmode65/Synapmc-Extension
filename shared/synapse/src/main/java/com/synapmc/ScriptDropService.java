@@ -149,8 +149,14 @@ public final class ScriptDropService {
             Class<?> serviceTriggerClass = serviceTrigger.getClass();
             Object services = SynapMcShared.core.getServices();
             if (services == null) return false;
+            java.util.Collection<?> names = (java.util.Collection<?>) services.getClass().getMethod("getServices").invoke(services);
+            String base = stripExtension(file.getName());
+            if (base.isBlank()) base = "Imported script";
+            String name = base;
+            int suffix = 2;
+            while (names.contains(name)) name = base + " (" + suffix++ + ")";
             Object registered = services.getClass().getMethod("registerService", String.class, serviceTriggerClass)
-                    .invoke(services, "", serviceTrigger);
+                    .invoke(services, name, serviceTrigger);
             if (Boolean.TRUE.equals(registered)) {
                 try { services.getClass().getMethod("save").invoke(services); } catch (NoSuchMethodException ignored) { }
                 return true;
@@ -163,8 +169,14 @@ public final class ScriptDropService {
         Class<?> triggerTypeClass = Class.forName(triggerName + "$TriggerType");
         @SuppressWarnings({"rawtypes", "unchecked"}) Object triggerType = Enum.valueOf((Class) triggerTypeClass,
                 "event".equals(kind) ? "EVENT" : "KEY_RISING");
-        Object trigger = triggerClass.getConstructor(triggerTypeClass, String.class, String.class,
-                boolean.class, boolean.class).newInstance(triggerType, "", relative, false, false);
+        Object trigger;
+        try {
+            trigger = triggerClass.getConstructor(triggerTypeClass, String.class, String.class,
+                    boolean.class, boolean.class).newInstance(triggerType, "", relative, false, false);
+        } catch (NoSuchMethodException legacy) {
+            trigger = triggerClass.getConstructor(triggerTypeClass, String.class, String.class,
+                    boolean.class).newInstance(triggerType, "", relative, false);
+        }
         Object profile = SynapMcShared.core.getProfile();
         if (profile == null) return false;
         Object registry = profile.getClass().getMethod("getRegistry").invoke(profile);

@@ -11,14 +11,21 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class SynapMcConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public boolean autorunEnabled = true;
+    public volatile boolean scriptHistory = true;
     public boolean silent = false;
     public volatile boolean chatSayEnabled = true;
     public volatile int miniLogs = 10;
+    public volatile int highlightAlpha = 144;
+    public volatile int highlightBrightness = 100;
+    public List<Integer> favoriteColors = new ArrayList<>();
+    public List<Integer> recentColors = new ArrayList<>();
     public boolean creatorMode = false;
     public boolean tcpPortEnabled = false;
     public int tcpPort = 8765;
@@ -99,6 +106,10 @@ public final class SynapMcConfig {
 
     private void normalize() {
         if (miniLogs < 0) miniLogs = 10;
+        if (highlightAlpha < 0 || highlightAlpha > 255) highlightAlpha = 144;
+        if (highlightBrightness < 0 || highlightBrightness > 100) highlightBrightness = 100;
+        favoriteColors = normalizeColors(favoriteColors, 48);
+        recentColors = normalizeColors(recentColors, 24);
         if (tcpPort < 1 || tcpPort > 65535) tcpPort = 8765;
         if (tcpPortPassword == null) tcpPortPassword = "";
         if (tcpBindAddress == null) tcpBindAddress = "";
@@ -127,5 +138,14 @@ public final class SynapMcConfig {
 
     private static Path path(File roamingDir) {
         return new File(roamingDir, "config/synapmc.json").toPath();
+    }
+
+    private static List<Integer> normalizeColors(List<Integer> colors, int limit) {
+        List<Integer> result = new ArrayList<>();
+        if (colors != null) for (Integer color : colors) {
+            if (color != null && !result.contains(color)) result.add(color);
+            if (result.size() == limit) break;
+        }
+        return result;
     }
 }

@@ -3,6 +3,7 @@ import net.minecraft.class_332;
 import java.nio.file.Path;
 import java.util.List;
 public class ScriptScreen {
+    public boolean drawTitle;
     public boolean method_25404(int key, int scanCode, int modifiers) { return false; }
     public boolean method_25402(double mouseX, double mouseY, int button) { return false; }
     public boolean method_25403(double x, double y, int button, double dx, double dy) { return false; }

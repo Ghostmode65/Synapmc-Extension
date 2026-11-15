@@ -84,9 +84,12 @@ public final class FSynapse {
         SynapMcConfig cfg = SynapMcShared.config;
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         values.put("autorunEnabled", cfg.autorunEnabled);
+        values.put("scriptHistory", cfg.scriptHistory);
         values.put("silent", cfg.silent);
         values.put("chatSayEnabled", cfg.chatSayEnabled);
         values.put("miniLogs", cfg.miniLogs);
+        values.put("highlightAlpha", cfg.highlightAlpha);
+        values.put("highlightBrightness", cfg.highlightBrightness);
         values.put("tcpPortEnabled", cfg.tcpPortEnabled);
         values.put("tcpPort", cfg.tcpPort);
         values.put("tcpPortPassword", cfg.tcpPortPassword);
@@ -108,12 +111,25 @@ public final class FSynapse {
         boolean refreshTcp = false;
         boolean refreshUnify = false;
         switch (settingName) {
+            case "highlightAlpha":
+            case "highlightBrightness":
+                if (!(value instanceof Number)) return false;
+                double highlight = ((Number) value).doubleValue();
+                int maximum = settingName.equals("highlightAlpha") ? 255 : 100;
+                if (!Double.isFinite(highlight) || Math.rint(highlight) != highlight || highlight < 0 || highlight > maximum) return false;
+                if (settingName.equals("highlightAlpha")) cfg.highlightAlpha = (int) highlight;
+                else cfg.highlightBrightness = (int) highlight;
+                break;
             case "miniLogs":
                 if (!(value instanceof Number)) return false;
                 double threshold = ((Number) value).doubleValue();
                 if (!Double.isFinite(threshold) || Math.rint(threshold) != threshold
                         || threshold < 0 || threshold > Integer.MAX_VALUE) return false;
                 cfg.miniLogs = ((Number) value).intValue();
+                break;
+            case "scriptHistory":
+                if (!(value instanceof Boolean)) return false;
+                cfg.scriptHistory = (Boolean) value;
                 break;
             case "autorunEnabled":
                 if (!(value instanceof Boolean)) return false;
@@ -204,8 +220,11 @@ public final class FSynapse {
     @SuppressWarnings("unchecked")
     private void restoreSetting(SynapMcConfig cfg, String name, Object previous) {
         switch (name) {
+            case "highlightAlpha": cfg.highlightAlpha = (Integer) previous; break;
+            case "highlightBrightness": cfg.highlightBrightness = (Integer) previous; break;
             case "miniLogs": cfg.miniLogs = (Integer) previous; break;
             case "autorunEnabled": cfg.autorunEnabled = (Boolean) previous; break;
+            case "scriptHistory": cfg.scriptHistory = (Boolean) previous; break;
             case "silent": cfg.silent = (Boolean) previous; break;
             case "chatSayEnabled": cfg.chatSayEnabled = (Boolean) previous; break;
             case "tcpPortEnabled": cfg.tcpPortEnabled = (Boolean) previous; break;

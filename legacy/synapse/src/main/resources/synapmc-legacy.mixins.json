@@ -20,6 +20,10 @@
     "ErrorLogMixin",
     "LegacyQueuedChatMixin",
     "EditorColorMixin",
-    "LegacyModernEditorColorMixin"
+    "LegacyModernEditorColorMixin",
+    "MacroProfileMixin",
+    "LegacyModernMacroProfileMixin",
+    "ProfileStorageMixin",
+    "TextHelperMixin"
   ]
 }

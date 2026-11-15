@@ -16,9 +16,12 @@ public final class SynapMcSettingsUi {
         if (config == null) config = new SynapMcConfig();
         switch (name) {
             case "autorunEnabled": return config.autorunEnabled;
+            case "scriptHistory": return config.scriptHistory;
             case "silent": return config.silent;
             case "chatSayEnabled": return config.chatSayEnabled;
             case "miniLogs": return config.miniLogs;
+            case "highlightAlpha": return config.highlightAlpha;
+            case "highlightBrightness": return config.highlightBrightness;
             case "tcpPortEnabled": return config.tcpPortEnabled;
             case "tcpPort": return config.tcpPort;
             case "tcpPortPassword": return config.tcpPortPassword;
@@ -71,6 +74,7 @@ public final class SynapMcSettingsUi {
         names.put("synapmc.settings", "SynapMc");
         names.put("synapmc.settings.tcp", "TCP Bridge");
         names.put("synapmc.settings.autorunEnabled", "Auto-execute");
+        names.put("synapmc.settings.scriptHistory", "Script History");
         names.put("synapmc.settings.silent", "Silence Logs");
         names.put("synapmc.settings.chatSayEnabled", "Chat Say");
         names.put("synapmc.settings.miniLogs", "Mini Logs");

@@ -24,7 +24,11 @@ public final class ScriptDropUi {
     private String editingSource;
     private boolean attempted;
     private Object registerButton;
-    private String registerKind = "";
+    private Object registerKindButton;
+    private int registerKindX, registerKindY, registerKindWidth;
+    private int registerDirection = 1;
+    private boolean compactRegisterLabel;
+    private String registerKind = "key";
     private boolean registerScript;
     private boolean busy;
     private int scrollOffset;
@@ -67,23 +71,35 @@ public final class ScriptDropUi {
                 status = "Selection cleared.";
                 refresh();
             });
-            int keyWidth = Math.min(80, slot - 4);
+            int keyWidth = Math.min(80, width / 7);
             int importKeysX = width - 8 - keyWidth;
             MacroScreenBridge.addButton(screen, importKeysX - keyWidth - 4, height - 51, keyWidth, 18,
                     "Export Keys", () -> transferKeys(true));
             MacroScreenBridge.addButton(screen, importKeysX, height - 51, keyWidth, 18,
                     "Import Keys", () -> transferKeys(false));
-            registerKind = MacroScreenBridge.importerContext(screen);
-            if ("key".equals(registerKind) || "event".equals(registerKind) || "service".equals(registerKind)) {
-                int registerWidth = Math.min(132, slot - 4);
-                registerButton = MacroScreenBridge.addButton(screen, 8 + slot, height - 51, registerWidth, 18,
-                        registerLabel(), () -> {
-                            if (!busy) {
-                                registerScript = !registerScript;
-                                MacroScreenBridge.caption(registerButton, registerLabel());
-                            }
-                        });
-            }
+            int registerX = 70;
+            int registerSpace = importKeysX - keyWidth - 12 - registerX;
+            int cycleWidth = 70;
+            int registerWidth = Math.min(132, registerSpace - cycleWidth - 4);
+            compactRegisterLabel = registerWidth < 100;
+            registerButton = MacroScreenBridge.addButton(screen, registerX, height - 51, registerWidth, 18,
+                    registerLabel(), () -> {
+                        if (!busy) { registerScript = !registerScript; refresh(); }
+                    });
+            registerKindX = registerX + registerWidth + 4;
+            registerKindY = height - 51;
+            registerKindWidth = cycleWidth;
+            registerKindButton = MacroScreenBridge.addButton(screen, registerKindX, registerKindY,
+                    cycleWidth, 18, registerKindLabel(), () -> {
+                        if (busy || !registerScript) return;
+                        registerKind = switch (registerKind) {
+                            case "key" -> "event";
+                            case "event" -> registerDirection < 0 ? "key" : "service";
+                            default -> "event";
+                        };
+                        registerDirection = 1;
+                        refresh();
+                    });
             rowControls.clear();
             int rowWidth = Math.min(600, width - 24);
             int left = (width - rowWidth) / 2;
@@ -177,12 +193,15 @@ public final class ScriptDropUi {
     }
 
     public boolean keyPressed(int key) {
+        registerDirection = 1;
         if ((key == 257 || key == 335) && editingDestination) { finishDestination(); return true; }
         if ((key == 257 || key == 335) && editingSource != null) { finishEditing(); return true; }
         return false;
     }
 
     public void mouseClicked(double x, double y) {
+        registerDirection = registerScript && x >= registerKindX && x < registerKindX + registerKindWidth / 2.0
+                && y >= registerKindY && y < registerKindY + 18 ? -1 : 1;
         boolean pencil = x >= 8 && x < 16 && y >= 42 && y < 54;
         boolean input = x >= destinationInputX && x < destinationInputX + destinationInputWidth
                 && y >= 40 && y < 58;
@@ -293,7 +312,14 @@ public final class ScriptDropUi {
         worker.start();
     }
 
-    private String registerLabel() { return "Register script: " + (registerScript ? "On" : "Off"); }
+    private String registerLabel() { return (compactRegisterLabel ? "Reg: " : "Register script: ") + (registerScript ? "On" : "Off"); }
+    private String registerKindLabel() {
+        return switch (registerKind) {
+            case "event" -> "< Event >";
+            case "service" -> "< Service";
+            default -> "Key >";
+        };
+    }
 
     private void transferKeys(boolean exporting) {
         if (busy) return;
@@ -341,6 +367,9 @@ public final class ScriptDropUi {
 
     private void refresh() {
         text.clear();
+        MacroScreenBridge.caption(registerButton, registerLabel());
+        MacroScreenBridge.caption(registerKindButton, registerKindLabel());
+        MacroScreenBridge.visible(registerKindButton, registerScript);
         int width = MacroScreenBridge.dimension(screen, "width", "field_22789");
         int height = MacroScreenBridge.dimension(screen, "height", "field_22790");
         if (width == 0 || height == 0) return;

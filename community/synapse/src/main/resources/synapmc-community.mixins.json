@@ -16,6 +16,9 @@
     "ItemTextureModelMixin",
     "ChatMixin",
     "ErrorLogMixin",
-    "EditorColorMixin"
+    "EditorColorMixin",
+    "MacroProfileMixin",
+    "ProfileStorageMixin",
+    "TextHelperMixin"
   ]
 }

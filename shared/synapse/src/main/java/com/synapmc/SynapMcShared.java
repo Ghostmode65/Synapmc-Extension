@@ -30,16 +30,19 @@ public final class SynapMcShared {
         config = SynapMcConfig.load(roamingDir);
 
         for (String directory : new String[] {
-                "config", "assets/images", "assets/sounds", "scripts/library", "scripts/snippets",
+                "config", "config/profiles", "assets/images", "assets/sounds", "scripts/library", "scripts/snippets",
                 "scripts/auto-execute", "scripts/macros", "scripts/projects", "downloads"
         }) {
             new File(roamingDir, directory).mkdirs();
         }
         saveConfig();
+        try { SharedProfiles.initialize(); }
+        catch (Exception error) { error("[SynapMc] Could not load shared profiles: " + error.getMessage()); }
         refreshUnifyFolders();
         refreshTcp();
         RepoManager.getInstance().init(roamingDir);
         if (config.autorunEnabled) runAutorun();
+        ScriptHistoryService.start();
         MacroScreenBridge.start();
     }
 

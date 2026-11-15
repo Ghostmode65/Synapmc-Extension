@@ -1,6 +1,7 @@
 package com.synapmc.mixin;
 
 import com.synapmc.EditorColors;
+import com.synapmc.EditorHistory;
 import com.synapmc.EditorSnippets;
 import @CORE_PACKAGE@.client.gui.editor.highlighting.AbstractRenderCodeCompiler;
 import @CORE_PACKAGE@.client.gui.editor.highlighting.AutoCompleteSuggestion;
@@ -17,6 +18,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = "@CORE_PACKAGE@.client.gui.screens.EditorScreen", remap = false)
 public abstract class EditorColorMixin {
     @Unique private final EditorColors synapmc$colors = new EditorColors();
+
+    @Inject(method = "@EDITOR_INIT@()V", at = @At("TAIL"), remap = false)
+    private void synapmc$historyButton(CallbackInfo ci) { EditorHistory.attach(this); }
+
+    @Inject(method = "save", at = @At("HEAD"), remap = false)
+    private void synapmc$historyBeforeSave(CallbackInfo ci) { EditorHistory.capture(this); }
+
+    @Inject(method = "save", at = @At("RETURN"), remap = false)
+    private void synapmc$historyAfterSave(CallbackInfo ci) { EditorHistory.capture(this); }
+
 
     @Inject(method = "@ELEMENT_RENDER_METHOD@(L@EDITOR_CONTEXT_INTERNAL@;IIF)V", at = @At(value = "INVOKE",
             target = "L@CORE_INTERNAL@/client/gui/editor/highlighting/AbstractRenderCodeCompiler;getRenderedText()[L@TEXT_INTERNAL@;"), require = @EDITOR_REQUIRE@, remap = false)

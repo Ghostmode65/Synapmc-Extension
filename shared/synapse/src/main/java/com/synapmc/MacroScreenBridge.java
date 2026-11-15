@@ -12,6 +12,8 @@ public final class MacroScreenBridge {
     private static volatile boolean started;
     private static Object attachedScreen;
     private static List<Object> attachedButtons = Collections.emptyList();
+    private static Object repositoryButton;
+    private static final String[] REPOSITORY_ICONS = {"🌏", "🌎", "🌍"};
     private static volatile boolean textRenderErrorLogged;
     private static final java.util.Map<Object, String> importerContexts =
             java.util.Collections.synchronizedMap(new java.util.WeakHashMap<Object, String>());
@@ -49,26 +51,79 @@ public final class MacroScreenBridge {
             if (!isMacroScreen(screen)) {
                 attachedScreen = null;
                 attachedButtons = Collections.emptyList();
+                repositoryButton = null;
                 return;
             }
             if (screen == attachedScreen && children(screen).containsAll(attachedButtons)
-                    && !attachedButtons.isEmpty()) return;
+                    && !attachedButtons.isEmpty()) {
+                updateRepositoryIcon(System.nanoTime());
+                return;
+            }
             int width = dimension(screen, "width", "field_22789");
             int height = dimension(screen, "height", "field_22790");
             if (width == 0 || height == 0) return;
             List<Object> buttons = new ArrayList<Object>();
-            int buttonWidth = Math.max(1, width / 12);
-            buttons.add(addButton(screen, 0, height - 42, buttonWidth, 12,
-                    "Repository", MacroScreenBridge::openRepoBrowser));
-            buttons.add(addButton(screen, 0, height - 27, buttonWidth, 12,
-                    "Import", () -> openImporter(screen)));
-            buttons.add(addButton(screen, 0, height - 57, buttonWidth, 12,
-                    "Snippets", () -> EditorSnippets.open(screen, null, null)));
+            int profileX = width * (field(screen, "serviceScreen") == null ? 2 : 3) / 6 + 3;
+            int switchWidth = 22;
+            Object profiles = headerButton(screen, profileX, switchWidth, "⇄", () -> openProfiles(screen));
+            lowerSwapSymbol(profiles);
+            setTooltip(profiles, "Manage and switch JsMacros profiles");
+            buttons.add(profiles);
+            Object snippets = headerButton(screen, profileX + switchWidth, switchWidth, "✀",
+                    () -> EditorSnippets.open(screen, null, null));
+            setTooltip(snippets, "Snippets");
+            buttons.add(snippets);
+            Object importer = headerButton(screen, profileX + 2 * switchWidth, switchWidth, "⬇",
+                    () -> openImporter(screen));
+            setTooltip(importer, "Import");
+            buttons.add(importer);
+            repositoryButton = headerButton(screen, profileX + 3 * switchWidth, switchWidth,
+                    REPOSITORY_ICONS[0], MacroScreenBridge::openRepoBrowser);
+            setTooltip(repositoryButton, "Repository browser");
+            buttons.add(repositoryButton);
             attachedScreen = screen;
             attachedButtons = buttons;
+            updateRepositoryIcon(System.nanoTime());
         } catch (Exception error) {
             SynapMcShared.error("[SynapMc] Could not add macro screen button: " + error);
         }
+    }
+
+    private static void updateRepositoryIcon(long nanos) throws Exception {
+        String icon = REPOSITORY_ICONS[(int) Math.floorMod(nanos / 1_000_000_000L, REPOSITORY_ICONS.length)];
+        if (repositoryButton != null && !icon.equals(widgetCaption(repositoryButton))) caption(repositoryButton, icon);
+    }
+
+    private static void lowerSwapSymbol(Object button) throws Exception {
+        // Reset the native text layout before adjusting it, so repairing or resizing
+        // the screen never accumulates additional offsets.
+        caption(button, "⇄");
+        for (Class<?> type = button.getClass(); type != null; type = type.getSuperclass()) {
+            try {
+                Field center = type.getDeclaredField("verticalCenter");
+                center.setAccessible(true);
+                center.setInt(button, center.getInt(button) + 2);
+                return;
+            } catch (NoSuchFieldException ignored) { }
+        }
+        throw new NoSuchFieldException("JsMacros Button.verticalCenter");
+    }
+
+    /** Keeps native tab separators without adding dividers between the shortcuts. */
+    public static void fillHeader(Object screen, Object context, int x1, int y1, int x2, int y2, int color) {
+        GuiPaint.fill(context, screen, x1, y1, x2, y2, color);
+    }
+
+    private static Object headerButton(Object screen, int x, int width, String caption, Runnable action) throws Exception {
+        for (Object widget : children(screen)) {
+            String existing = widgetCaption(widget);
+            if (!existing.equals(caption) && !(caption.equals(REPOSITORY_ICONS[0])
+                    && java.util.Arrays.asList(REPOSITORY_ICONS).contains(existing))) continue;
+            widget.getClass().getField("onPress").set(widget, (Consumer<Object>) ignored -> action.run());
+            position(widget, x, 0, width, 20);
+            return widget;
+        }
+        return addButton(screen, x, 0, width, 20, caption, action);
     }
 
     private static Object currentScreen(Object client) throws Exception {
@@ -88,16 +143,15 @@ public final class MacroScreenBridge {
         return false;
     }
 
-    private static void openImporter(Object parent) {
+    public static void openImporter(Object parent) {
         try {
-            String packageName = parent.getClass().getPackageName();
-            String screensPackage = ".client.gui.screens";
-            int screensIndex = packageName.lastIndexOf(screensPackage);
-            if (screensIndex < 0) throw new ClassNotFoundException("JsMacros screen package");
-            String screenName = packageName.substring(0, screensIndex) + ".synapmc.SynapMcExtension";
-            Object extension = Class.forName(screenName).getConstructor().newInstance();
-            Object importer = extension.getClass().getMethod("createScriptDropScreen").invoke(extension);
-            importerContexts.put(importer, macroScreenKind(parent));
+            Object importer;
+            if (SynapMcShared.core != null) importer = SynapMcShared.core.createScriptDropScreen();
+            else {
+                Object extension = Class.forName(corePrefix(parent) + ".synapmc.SynapMcExtension").getConstructor().newInstance();
+                importer = extension.getClass().getMethod("createScriptDropScreen").invoke(extension);
+            }
+            importerContexts.put(importer, "key");
             showChild(parent, importer);
         } catch (Exception error) {
             SynapMcShared.error("[SynapMc] Could not open script importer: " + error);
@@ -106,12 +160,69 @@ public final class MacroScreenBridge {
 
     public static String importerContext(Object importer) { return importerContexts.get(importer); }
 
-    private static String macroScreenKind(Object screen) {
-        String name = screen == null ? "" : screen.getClass().getSimpleName();
-        if (name.equals("ServiceScreen")) return "service";
-        if (name.equals("EventMacrosScreen")) return "event";
-        if (name.equals("KeyMacrosScreen")) return "key";
-        return "";
+    public static void openHub(Object parent) {
+        try {
+            showChild(parent, Class.forName(screenVariant("com.synapmc.SynapMcScreen", parent)).getConstructor().newInstance());
+        } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not open SynapMc: " + error); }
+    }
+
+    public static void openProfiles(Object parent) {
+        try {
+            showChild(parent, Class.forName(screenVariant("com.synapmc.ProfilesScreen", parent)).getConstructor().newInstance());
+        } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not open profiles: " + error); }
+    }
+
+    public static boolean openProfileKeys(Object parent) {
+        try {
+            Class<?> type = Class.forName(corePrefix(parent) + ".client.gui.screens.KeyMacrosScreen");
+            for (Constructor<?> constructor : type.getConstructors())
+                if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0].isInstance(parent))
+                    return showChild(parent, constructor.newInstance(parent));
+            throw new NoSuchMethodException("JsMacros Keys screen");
+        } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not edit profile bindings: " + error); return false; }
+    }
+
+    private static String screenVariant(String name, Object parent) {
+        if (SynapMcShared.core != null && "legacy".equals(SynapMcShared.core.getJsVersion()))
+            for (Method method : parent.getClass().getMethods())
+                if (method.getName().equals("method_25394") && method.getParameterCount() == 4
+                        && method.getParameterTypes()[0].getName().equals("net.minecraft.class_332")) return name + "Modern";
+        return name;
+    }
+
+    public static void openCoreSettings(Object screen) {
+        try {
+            int width = dimension(screen, "width", "field_22789");
+            int height = dimension(screen, "height", "field_22790");
+            createOverlay(screen, Class.forName(corePrefix(screen) + ".client.gui.settings.SettingsOverlay"),
+                    width / 8, height / 8, width * 3 / 4, height * 3 / 4,
+                    field(screen, "font", "field_22793"), screen);
+        } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not open JsMacros profiles/settings: " + error); }
+    }
+
+    private static String corePrefix(Object screen) {
+        return guiPrefix(screen).substring(0, guiPrefix(screen).indexOf(".wagyourgui")) + ".jsmacros";
+    }
+
+    private static String widgetCaption(Object widget) {
+        Object label = field(widget, "message", "field_22754");
+        for (String name : new String[] {"getMessage", "method_25369"}) {
+            try { label = widget.getClass().getMethod(name).invoke(widget); break; }
+            catch (ReflectiveOperationException ignored) { }
+        }
+        if (label == null) return "";
+        // Translation keys identify the native button even in a non-English locale.
+        for (String name : new String[] {"getContents", "method_10851"}) {
+            try {
+                Object contents = label.getClass().getMethod(name).invoke(label);
+                for (String key : new String[] {"getKey", "method_11022"}) {
+                    try { return (String) contents.getClass().getMethod(key).invoke(contents); }
+                    catch (ReflectiveOperationException ignored) { }
+                }
+            } catch (ReflectiveOperationException ignored) { }
+        }
+        try { return (String) label.getClass().getMethod("getString").invoke(label); }
+        catch (ReflectiveOperationException ignored) { return ""; }
     }
 
     public static void openRepoBrowser() {
@@ -237,6 +348,10 @@ public final class MacroScreenBridge {
 
     private static void openOverlay(Object screen, String name, Object... args) throws Exception {
         Class<?> type = Class.forName(guiPrefix(screen) + ".overlays." + name);
+        createOverlay(screen, type, args);
+    }
+
+    private static void createOverlay(Object screen, Class<?> type, Object... args) throws Exception {
         for (Constructor<?> constructor : type.getConstructors()) {
             if (constructor.getParameterCount() != args.length) continue;
             Object overlay = constructor.newInstance(args);
@@ -247,7 +362,7 @@ public final class MacroScreenBridge {
                     return;
                 }
         }
-        throw new NoSuchMethodException("JsMacros " + name + " overlay");
+        throw new NoSuchMethodException("JsMacros " + type.getSimpleName() + " overlay");
     }
 
     private static String guiPrefix(Object screen) {
@@ -309,6 +424,28 @@ public final class MacroScreenBridge {
         if (widget == null) return;
         try { widget.getClass().getMethod("setTextColor", int.class).invoke(widget, color); }
         catch (Exception error) { SynapMcShared.error("[SynapMc] Could not color script row: " + error); }
+    }
+
+    public static void removeWidget(Object screen, Object widget) {
+        for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass()) {
+            for (Method method : type.getDeclaredMethods())
+                if ((method.getName().equals("removeWidget") || method.getName().equals("method_37066"))
+                        && method.getParameterCount() == 1 && method.getParameterTypes()[0].isInstance(widget)) {
+                    try { method.setAccessible(true); method.invoke(screen, widget); return; }
+                    catch (ReflectiveOperationException ignored) { }
+                }
+        }
+        children(screen).remove(widget);
+    }
+
+    public static void buttonColor(Object button, int color) {
+        try { button.getClass().getMethod("setColor", int.class).invoke(button, color); }
+        catch (ReflectiveOperationException ignored) { }
+    }
+
+    public static void position(Object widget, int x, int y, int width, int height) {
+        try { widget.getClass().getMethod("setPos", int.class, int.class, int.class, int.class).invoke(widget, x, y, width, height); }
+        catch (ReflectiveOperationException error) { SynapMcShared.error("[SynapMc] Could not position widget: " + error); }
     }
 
     private static Object addWidget(Object screen, Object widget) throws Exception {
@@ -414,6 +551,14 @@ public final class MacroScreenBridge {
                 button.getClass().getField(name).setBoolean(button, visible);
                 return;
             } catch (ReflectiveOperationException ignored) { }
+        }
+    }
+
+    public static void active(Object button, boolean active) {
+        if (button == null) return;
+        for (String name : new String[] {"active", "field_22763"}) {
+            try { button.getClass().getField(name).setBoolean(button, active); return; }
+            catch (ReflectiveOperationException ignored) { }
         }
     }
 

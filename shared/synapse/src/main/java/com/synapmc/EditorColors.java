@@ -56,9 +56,18 @@ public final class EditorColors {
     }
 
     private static int highlightColor(int color) {
-        // Moderate opacity keeps the color visible without overpowering the code.
         // Preview opacity is independent of ARGB alpha so transparent colors still show.
-        return 0x90000000 | color & 0xFFFFFF;
+        SynapMcConfig config = SynapMcShared.config;
+        int alpha = config == null ? 144 : config.highlightAlpha;
+        int brightness = config == null ? 100 : config.highlightBrightness;
+        return highlightColor(color, alpha, brightness);
+    }
+
+    static int highlightColor(int color, int alpha, int brightness) {
+        int red = (color >> 16 & 255) * brightness / 100;
+        int green = (color >> 8 & 255) * brightness / 100;
+        int blue = (color & 255) * brightness / 100;
+        return alpha << 24 | red << 16 | green << 8 | blue;
     }
 
     public static Map<String, Runnable> options(Object editor, int index, Map<String, Runnable> original) {
