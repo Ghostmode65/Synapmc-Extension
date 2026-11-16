@@ -3,7 +3,7 @@
   "source": "https://github.com/Ghostmode65/Synapmc-Extension/tree/main/repository/default",
   "author": "Ghostmode65",
   "repos": [
-    "https://github.com/Ghostmode65/Synapmc-Extension/blob/main/repository/default/extensions/extensions.json"
+     "https://raw.githubusercontent.com/Ghostmode65/Synapmc-Extension/main/repository/default/extensions/extensions.json"
   ],
   "scripts": []
 }
