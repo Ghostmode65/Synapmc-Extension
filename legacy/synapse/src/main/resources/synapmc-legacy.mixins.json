@@ -8,6 +8,8 @@
     "ClientMixin",
     "ScoreboardsMixin",
     "SidebarMixin",
+    "Legacy120ScoreboardsMixin",
+    "Legacy120SidebarMixin",
     "ItemStackTextureMixin",
     "ItemTextureRenderMixin",
     "ItemTooltipMixin",
@@ -24,6 +26,8 @@
     "MacroProfileMixin",
     "LegacyModernMacroProfileMixin",
     "ProfileStorageMixin",
-    "TextHelperMixin"
+    "TextHelperMixin",
+    "HeaderIconButtonMixin",
+    "LegacyModernHeaderIconButtonMixin"
   ]
 }

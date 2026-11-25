@@ -357,6 +357,19 @@ public final class MinecraftAccess {
         });
     }
 
+    public static void openUrl(String address) throws Exception {
+        Object platform = invokeStatic("net.minecraft.util.Util", "getPlatform");
+        if (platform == null) platform = invokeStatic("net.minecraft.Util", "getPlatform");
+        if (platform == null) platform = invokeStatic("net.minecraft.class_156", "method_668");
+        if (platform == null) throw new IllegalStateException("Desktop platform is unavailable");
+        java.net.URI uri = java.net.URI.create(address);
+        for (String name : new String[] {"openUri", "open", "method_673"}) {
+            try { platform.getClass().getMethod(name, java.net.URI.class).invoke(platform, uri); return; }
+            catch (NoSuchMethodException ignored) { }
+        }
+        throw new NoSuchMethodException("Platform.openUri");
+    }
+
     public static void openFile(File file) {
         MacroScreenBridge.onClient(() -> {
             try {

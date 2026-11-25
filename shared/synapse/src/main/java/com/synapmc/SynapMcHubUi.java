@@ -35,18 +35,19 @@ public final class SynapMcHubUi {
         rowY = 66;
         try {
             int y = 42;
-            int step = Math.min(22, Math.max(18, (height - 100) / 8));
-            for (String name : List.of("Snippets", "Import", "Repository")) {
+            int step = Math.min(22, Math.max(18, (height - 100) / 9));
+            for (String name : List.of("Snippets", "Import", "Repository", "GitHub")) {
                 String action = name;
                 button(12, y, rail - 12, 18, name, () -> {
                     if (!saveDraft()) return;
                     if (action.equals("Snippets")) EditorSnippets.open(screen, null, null);
                     else if (action.equals("Import")) MacroScreenBridge.openImporter(screen);
+                    else if (action.equals("GitHub")) MacroScreenBridge.openGitHub(screen);
                     else MacroScreenBridge.openRepoBrowser();
                 });
                 y += step;
             }
-            y += 12;
+            y += 4;
             for (String name : List.of("General", "TCP Bridge", "Editor", "Unify")) {
                 String tab = name;
                 Object control = button(12, y, rail - 12, 18, name, () -> {
@@ -56,7 +57,7 @@ public final class SynapMcHubUi {
                 if (page.equals(name)) MacroScreenBridge.buttonColor(control, 0x885A80B0);
                 y += step;
             }
-            button(12, y + 8, rail - 12, 18, "Profiles", () -> {
+            button(12, y, rail - 12, 18, "Profiles", () -> {
                 if (saveDraft()) MacroScreenBridge.openProfiles(screen);
             });
             button(12, height - 28, rail - 12, 18, "Back", () -> {

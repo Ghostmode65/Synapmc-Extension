@@ -5,10 +5,15 @@ import net.minecraft.class_332;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Newer Legacy uses DrawContext instead of MatrixStack for its header fills. */
 @Mixin(targets = "xyz.wagyourtail.jsmacros.client.gui.screens.MacroScreen", remap = false)
 public abstract class LegacyModernMacroProfileMixin {
+    @Inject(method = "method_25394(Lnet/minecraft/class_332;IIF)V", at = @At("HEAD"), require = 0, remap = false)
+    private void synapmc$animateModernHeader(CallbackInfo ci) { MacroScreenBridge.renderHeader(this); }
+
     @Redirect(method = "method_25394", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/class_332;method_25294(IIIII)V"), require = 0, remap = false)
     private void synapmc$headerDivider(class_332 context, int x1, int y1, int x2, int y2, int color) {

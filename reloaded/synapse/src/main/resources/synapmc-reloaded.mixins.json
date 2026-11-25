@@ -18,6 +18,7 @@
     "EditorColorMixin",
     "MacroProfileMixin",
     "ProfileStorageMixin",
-    "TextHelperMixin"
+    "TextHelperMixin",
+    "HeaderIconButtonMixin"
   ]
 }

@@ -23,6 +23,7 @@ public final class SynapMcShared {
 
     public static synchronized void init(ICoreAccess access) {
         core = access;
+        GitInstallation.startCheck();
         String os = System.getProperty("os.name", "").toLowerCase();
         String base = os.contains("win") ? System.getenv("APPDATA") : null;
         if (base == null || base.isEmpty()) base = System.getProperty("user.home");
@@ -38,12 +39,13 @@ public final class SynapMcShared {
         saveConfig();
         try { SharedProfiles.initialize(); }
         catch (Exception error) { error("[SynapMc] Could not load shared profiles: " + error.getMessage()); }
+        try { GitHubProjects.open().syncUnifiedFolder(); }
+        catch (IOException error) { error("[SynapMc] Could not load Git projects: " + error.getMessage()); }
         refreshUnifyFolders();
         refreshTcp();
         RepoManager.getInstance().init(roamingDir);
         if (config.autorunEnabled) runAutorun();
         ScriptHistoryService.start();
-        MacroScreenBridge.start();
     }
 
     public static synchronized void refreshTcp() {

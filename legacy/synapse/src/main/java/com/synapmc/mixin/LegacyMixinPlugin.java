@@ -10,18 +10,27 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 public final class LegacyMixinPlugin implements IMixinConfigPlugin {
     public static boolean supportsScoreboardText(String minecraftVersion) {
-        return "1.21".equals(minecraftVersion) || "1.21.1".equals(minecraftVersion);
+        return "1.20.1".equals(minecraftVersion) || modernSidebar(minecraftVersion);
+    }
+
+    private static boolean modernSidebar(String version) { return "1.21".equals(version) || "1.21.1".equals(version); }
+
+    public static boolean supportsMixin(String mixinClassName, String version) {
+        if (mixinClassName.endsWith(".Legacy120ScoreboardsMixin") || mixinClassName.endsWith(".Legacy120SidebarMixin"))
+            return "1.20.1".equals(version);
+        if (mixinClassName.endsWith(".ScoreboardsMixin") || mixinClassName.endsWith(".SidebarMixin")) return modernSidebar(version);
+        if (mixinClassName.endsWith(".ItemTooltipMixin") || mixinClassName.endsWith(".HandledScreenTooltipMixin")) return supportsScoreboardText(version);
+        if (mixinClassName.endsWith(".ItemStackTextureMixin") || mixinClassName.endsWith(".ItemTextureRenderMixin")
+                || mixinClassName.endsWith(".ItemHelperTextureMixin") || mixinClassName.endsWith(".ItemTexturePackMixin")
+                || mixinClassName.endsWith(".LegacyItemTextureLoaderMixin") || mixinClassName.endsWith(".LegacyItemTextureModelMixin"))
+            return modernSidebar(version);
+        return true;
     }
 
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (!mixinClassName.endsWith(".ScoreboardsMixin") && !mixinClassName.endsWith(".SidebarMixin") && !mixinClassName.endsWith(".ItemTooltipMixin")
-                && !mixinClassName.endsWith(".HandledScreenTooltipMixin") && !mixinClassName.endsWith(".ItemStackTextureMixin")
-                && !mixinClassName.endsWith(".ItemTextureRenderMixin") && !mixinClassName.endsWith(".ItemHelperTextureMixin")
-                && !mixinClassName.endsWith(".ItemTexturePackMixin") && !mixinClassName.endsWith(".LegacyItemTextureLoaderMixin")
-                && !mixinClassName.endsWith(".LegacyItemTextureModelMixin")) return true;
         return FabricLoader.getInstance().getModContainer("minecraft")
-            .map(mod -> supportsScoreboardText(mod.getMetadata().getVersion().getFriendlyString()))
-            .orElse(false);
+            .map(mod -> supportsMixin(mixinClassName, mod.getMetadata().getVersion().getFriendlyString()))
+            .orElseGet(() -> supportsMixin(mixinClassName, ""));
     }
 
     @Override public void onLoad(String mixinPackage) {}

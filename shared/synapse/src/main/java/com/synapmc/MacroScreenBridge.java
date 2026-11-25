@@ -9,89 +9,110 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public final class MacroScreenBridge {
-    private static volatile boolean started;
-    private static Object attachedScreen;
-    private static List<Object> attachedButtons = Collections.emptyList();
-    private static Object repositoryButton;
+    /** Owned by each native screen, so cached buttons cannot retain closed screens globally. */
+    public static final class Header {
+        private List<Object> buttons = Collections.emptyList();
+        private Object repository;
+        private int width, height;
+        private boolean services;
+    }
+    public interface HeaderScreen { Header synapmcHeader(); }
     private static final String[] REPOSITORY_ICONS = {"🌏", "🌎", "🌍"};
     private static volatile boolean textRenderErrorLogged;
+    private static volatile boolean iconRenderErrorLogged;
+    private enum ButtonIcon { REFRESH }
+    private static final java.util.Map<Object, ButtonIcon> iconButtons =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
     private static final java.util.Map<Object, String> importerContexts =
             java.util.Collections.synchronizedMap(new java.util.WeakHashMap<Object, String>());
 
     private MacroScreenBridge() {}
 
-    public static synchronized void start() {
-        if (started) return;
-        started = true;
-        Thread monitor = new Thread(() -> {
-            while (true) {
-                try {
-                    Object client = client();
-                    if (client != null) {
-                        Method execute = client.getClass().getMethod("execute", Runnable.class);
-                        execute.invoke(client, (Runnable) () -> inspect(client));
-                    }
-                    Thread.sleep(300);
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                    return;
-                } catch (Exception error) {
-                    SynapMcShared.error("[SynapMc] Could not attach macro screen button: " + error);
-                    return;
-                }
-            }
-        }, "SynapMc macro screen button");
-        monitor.setDaemon(true);
-        monitor.start();
-    }
-
-    private static void inspect(Object client) {
+    /** Runs at the end of native screen initialization, before the first frame. */
+    public static void attachHeader(Object screen) {
+        if (!(screen instanceof HeaderScreen owner)) return;
+        Header header = owner.synapmcHeader();
         try {
-            Object screen = currentScreen(client);
-            if (!isMacroScreen(screen)) {
-                attachedScreen = null;
-                attachedButtons = Collections.emptyList();
-                repositoryButton = null;
-                return;
-            }
-            if (screen == attachedScreen && children(screen).containsAll(attachedButtons)
-                    && !attachedButtons.isEmpty()) {
-                updateRepositoryIcon(System.nanoTime());
-                return;
-            }
             int width = dimension(screen, "width", "field_22789");
             int height = dimension(screen, "height", "field_22790");
             if (width == 0 || height == 0) return;
+            boolean services = field(screen, "serviceScreen") != null;
+            if (width == header.width && height == header.height && services == header.services
+                    && !header.buttons.isEmpty() && children(screen).containsAll(header.buttons)) {
+                enableHeader(screen, header);
+                updateRepositoryIcon(header, System.nanoTime()); return;
+            }
             List<Object> buttons = new ArrayList<Object>();
-            int profileX = width * (field(screen, "serviceScreen") == null ? 2 : 3) / 6 + 3;
-            int switchWidth = 22;
-            Object profiles = headerButton(screen, profileX, switchWidth, "⇄", () -> openProfiles(screen));
+            int profileX = width * (services ? 3 : 2) / 6 + 3;
+            int switchWidth = Math.min(22, (width * 5 / 6 - 2 - profileX) / 5);
+            // Native buttons draw borders inside their bounds. Share the adjoining
+            // border pixel so two neighboring outlines do not make a thicker seam.
+            int switchStep = switchWidth - 1;
+            Object profiles = headerButton(screen, header, 0, profileX, switchWidth, "⇄", () -> openProfiles(screen));
             lowerSwapSymbol(profiles);
             setTooltip(profiles, "Manage and switch JsMacros profiles");
             buttons.add(profiles);
-            Object snippets = headerButton(screen, profileX + switchWidth, switchWidth, "✀",
-                    () -> EditorSnippets.open(screen, null, null));
-            setTooltip(snippets, "Snippets");
-            buttons.add(snippets);
-            Object importer = headerButton(screen, profileX + 2 * switchWidth, switchWidth, "⬇",
+            Object importer = headerButton(screen, header, 1, profileX + switchStep, switchWidth, "⮋",
                     () -> openImporter(screen));
             setTooltip(importer, "Import");
             buttons.add(importer);
-            repositoryButton = headerButton(screen, profileX + 3 * switchWidth, switchWidth,
+            Object repository = headerButton(screen, header, 2, profileX + 2 * switchStep, switchWidth,
                     REPOSITORY_ICONS[0], MacroScreenBridge::openRepoBrowser);
-            setTooltip(repositoryButton, "Repository browser");
-            buttons.add(repositoryButton);
-            attachedScreen = screen;
-            attachedButtons = buttons;
-            updateRepositoryIcon(System.nanoTime());
+            setTooltip(repository, "Repository browser");
+            buttons.add(repository);
+            Object snippets = headerButton(screen, header, 3, profileX + 3 * switchStep, switchWidth, "✀",
+                    () -> EditorSnippets.open(screen, null, null));
+            setTooltip(snippets, "Snippets");
+            buttons.add(snippets);
+            Object github = headerButton(screen, header, 4, profileX + 4 * switchStep, switchWidth, "ⓖ", () -> openGitHub(screen));
+            setTooltip(github, "GitHub and GitLab projects and workspaces");
+            buttons.add(github);
+            header.buttons = List.copyOf(buttons); header.repository = repository;
+            header.width = width; header.height = height; header.services = services;
+            enableHeader(screen, header);
+            updateRepositoryIcon(header, System.nanoTime());
         } catch (Exception error) {
             SynapMcShared.error("[SynapMc] Could not add macro screen button: " + error);
         }
     }
 
-    private static void updateRepositoryIcon(long nanos) throws Exception {
+    private static void enableHeader(Object screen, Header header) {
+        // A native popup can disable cached widgets before opening the editor.
+        // Returning initializes the parent without restoring that popup's states.
+        if (hasOverlay(screen)) return;
+        for (Object button : header.buttons) active(button, true);
+    }
+
+    /** Updates the globe in native rendering; repairs shortcuts only if a widget was removed. */
+    public static void renderHeader(Object screen) {
+        if (!(screen instanceof HeaderScreen owner)) return;
+        Header header = owner.synapmcHeader();
+        if (header.buttons.isEmpty() || !children(screen).containsAll(header.buttons)) { attachHeader(screen); return; }
+        try { updateRepositoryIcon(header, System.nanoTime()); }
+        catch (Exception error) { SynapMcShared.error("[SynapMc] Could not animate repository icon: " + error); }
+    }
+
+    private static void updateRepositoryIcon(Header header, long nanos) throws Exception {
         String icon = REPOSITORY_ICONS[(int) Math.floorMod(nanos / 1_000_000_000L, REPOSITORY_ICONS.length)];
-        if (repositoryButton != null && !icon.equals(widgetCaption(repositoryButton))) caption(repositoryButton, icon);
+        if (header.repository != null && !icon.equals(widgetCaption(header.repository))) caption(header.repository, icon);
+    }
+
+    public static void refreshIcon(Object button) { iconButtons.put(button, ButtonIcon.REFRESH); }
+
+    public static boolean renderHeaderIcon(Object button, Object context) {
+        ButtonIcon icon = iconButtons.get(button);
+        if (icon == null) return false;
+        try {
+            HeaderIcon.drawRefresh(context, button, Boolean.FALSE.equals(field(button, "active", "field_22763")) ? 0xFF888888 : 0xFFFFFFFF);
+            return true;
+        }
+        catch (Exception error) {
+            if (!iconRenderErrorLogged) {
+                iconRenderErrorLogged = true;
+                SynapMcShared.error("[SynapMc] Could not draw button icon: " + error);
+            }
+            return false;
+        }
     }
 
     private static void lowerSwapSymbol(Object button) throws Exception {
@@ -114,33 +135,21 @@ public final class MacroScreenBridge {
         GuiPaint.fill(context, screen, x1, y1, x2, y2, color);
     }
 
-    private static Object headerButton(Object screen, int x, int width, String caption, Runnable action) throws Exception {
+    private static Object headerButton(Object screen, Header header, int index, int x, int width, String caption, Runnable action) throws Exception {
+        Object button = null;
         for (Object widget : children(screen)) {
             String existing = widgetCaption(widget);
             if (!existing.equals(caption) && !(caption.equals(REPOSITORY_ICONS[0])
                     && java.util.Arrays.asList(REPOSITORY_ICONS).contains(existing))) continue;
-            widget.getClass().getField("onPress").set(widget, (Consumer<Object>) ignored -> action.run());
-            position(widget, x, 0, width, 20);
-            return widget;
+            button = widget; break;
         }
-        return addButton(screen, x, 0, width, 20, caption, action);
-    }
-
-    private static Object currentScreen(Object client) throws Exception {
-        Object gui = field(client, "gui");
-        if (gui != null) {
-            try { return gui.getClass().getMethod("screen").invoke(gui); }
-            catch (NoSuchMethodException ignored) { }
+        if (button == null && index < header.buttons.size()) {
+            button = header.buttons.get(index); addWidget(screen, button);
         }
-        return field(client, "screen", "field_1755");
-    }
-
-    private static boolean isMacroScreen(Object screen) {
-        if (screen == null) return false;
-        for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass()) {
-            if (type.getName().endsWith(".client.gui.screens.MacroScreen")) return true;
-        }
-        return false;
+        if (button == null) return addButton(screen, x, 0, width, 20, caption, action);
+        button.getClass().getField("onPress").set(button, (Consumer<Object>) ignored -> action.run());
+        position(button, x, 0, width, 20);
+        return button;
     }
 
     public static void openImporter(Object parent) {
@@ -170,6 +179,12 @@ public final class MacroScreenBridge {
         try {
             showChild(parent, Class.forName(screenVariant("com.synapmc.ProfilesScreen", parent)).getConstructor().newInstance());
         } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not open profiles: " + error); }
+    }
+
+    public static void openGitHub(Object parent) {
+        try {
+            showChild(parent, Class.forName(screenVariant("com.synapmc.GitHubScreen", parent)).getConstructor().newInstance());
+        } catch (Exception error) { SynapMcShared.error("[SynapMc] Could not open GitHub: " + error); }
     }
 
     public static boolean openProfileKeys(Object parent) {
@@ -315,6 +330,21 @@ public final class MacroScreenBridge {
             return addWidget(screen, input);
         }
         throw new NoSuchMethodException("JsMacros TextInput constructor");
+    }
+
+    public static Object addScrollbar(Object screen, int x, int y, int width, int height,
+                                      double pages, Consumer<Double> onChange) throws Exception {
+        Class<?> type = Class.forName(guiPrefix(screen) + ".elements.Scrollbar");
+        for (Constructor<?> constructor : type.getConstructors()) {
+            if (constructor.getParameterCount() != 9) continue;
+            return addWidget(screen, constructor.newInstance(x, y, width, height,
+                    0xFF202020, 0xFF000000, 0xFFBBBBBB, pages, onChange));
+        }
+        throw new NoSuchMethodException("JsMacros Scrollbar constructor");
+    }
+
+    public static void scrollbarPercent(Object scrollbar, double percent) throws Exception {
+        scrollbar.getClass().getMethod("scrollToPercent", double.class).invoke(scrollbar, percent);
     }
 
     public static boolean hasOverlay(Object screen) { return field(screen, "overlay") != null; }
